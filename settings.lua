@@ -1442,7 +1442,9 @@ function courseplay:setCustomIslandEdge(vehicle)
 	local x,y,z = getWorldTranslation(vehicle.rootNode);
 	local isField = x and z and courseplay:isField(x, z, 0.1, 0.1);
 	courseplay.fields:dbg(string.format("Island field scan: x,z=%.1f,%.1f, isField=%s", x, z, tostring(isField)), 'customLoad');
-	vehicle.cp.fieldEdge.island.points = nil;
+	if vehicle.cp.fieldEdge.island ~= nil then
+		vehicle.cp.fieldEdge.island.points = nil;
+	end
 	if not isField then
 		local edgePoints = courseplay.fields:setSingleFieldEdgePath(vehicle.rootNode, x, z, 1, 500, 10, nil, true, 'customLoad');
 		vehicle.cp.fieldEdge.island.points = edgePoints;
@@ -1450,8 +1452,10 @@ function courseplay:setCustomIslandEdge(vehicle)
 	end;
 
 	--print(tableShow(vehicle.cp.fieldEdge.customField.points, nameNum(vehicle) .. " fieldEdge.customField.points"));
-	vehicle.cp.fieldEdge.island.isCreated = vehicle.cp.fieldEdge.island.points ~= nil;
-	courseplay:toggleCustomFieldEdgePathShow(vehicle, vehicle.cp.fieldEdge.island.isCreated);
+	if vehicle.cp.fieldEdge.island ~= nil then
+		vehicle.cp.fieldEdge.island.isCreated = vehicle.cp.fieldEdge.island.points ~= nil;
+		courseplay:toggleCustomFieldEdgePathShow(vehicle, vehicle.cp.fieldEdge.island.isCreated);
+	end
 	courseplay:validateCanSwitchMode(vehicle);
 end;
 
@@ -1505,7 +1509,7 @@ function courseplay:addCustomSingleFieldEdgeToList(vehicle)
 	local area, _, dimensions = courseplay.fields:getPolygonData(data.points, nil, nil, true);
 	local islandArea, islandDimensions 
 	if data.islandPoints then
-		islandArea, _, islandDimensions courseplay.fields:getPolygonData(data.islandPoints, nil, nil, true);
+		islandArea, _, islandDimensions = courseplay.fields:getPolygonData(data.islandPoints, nil, nil, true);
 	end;
 	data.areaSqm = area;
 	data.areaHa = area / 10000;

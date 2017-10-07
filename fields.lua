@@ -88,8 +88,9 @@ function courseplay.fields:setAllFieldEdges()
 	self:dbg('setAllFieldEdges() END\n' .. string.rep('-', 50), 'scan');
 end;
 
-function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, randomDir, dbgType)
+function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, randomDir, dbgType, lookForIsland)
 	--self = courseplay.fields
+	lookForIsland = lookForIsland or false
 	if randomDir == nil then randomDir = false; end;
 	scanStep = scanStep or self.defaultScanStep;
 	maxN = maxN or math.floor(10000/scanStep); --10 km circumference should be enough. otherwise state maxN as parameter
@@ -102,7 +103,7 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 	local coordinates, xValues, zValues = {}, {}, {};
 	local numPoints = 0;
 	self:dbg(string.format('Begin edge scanning at: %.2f, %.2f', x0, z0), dbgType);
-	if isField then
+	if isField or lookForIsland and not isField then
 		-- (1) SET INITIAL TG AND PROBE DATA
 		local dis = 0;
 		local stepA, stepB = 1, -0.05;
@@ -123,22 +124,41 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 
 		-- (2) FIND INITIAL BORDER POINT
 		self:dbg(string.format('\tSearching edge in direction: %.4f (%.1f deg)', ry, math.deg(ry)), dbgType);
-		while courseplay:isField(x0, z0, 0.1, 0.1) do --search fast forward (1m steps)
-			dis = dis + stepA;
-			translate(tg, 0, 0, stepA);
-			x0, _, z0 = getWorldTranslation(tg);
-			if math.abs(dis) > 2000 then
-				break;
+		if lookForIsland then
+			while not courseplay:isField(x0, z0, 0.1, 0.1) do --search fast forward (1m steps)
+				dis = dis + stepA;
+				translate(tg, 0, 0, stepA);
+				x0, _, z0 = getWorldTranslation(tg);
+				if math.abs(dis) > 2000 then
+					break;
+				end;
 			end;
-		end;
+		else
+			while courseplay:isField(x0, z0, 0.1, 0.1) do --search fast forward (1m steps)
+				dis = dis + stepA;
+				translate(tg, 0, 0, stepA);
+				x0, _, z0 = getWorldTranslation(tg);
+				if math.abs(dis) > 2000 then
+					break;
+				end;
+			end;
+		end
 
 		-- now we have a point very close to the field boundary but definitely outside
 		self:dbg(string.format('\t\tfound first point past field border: x0=%s, z0=%s, dis=%s', tostring(x0), tostring(z0), tostring(dis)), dbgType);
-
-		while not courseplay:isField(x0,z0,0.1,0.1) do --then backtrace in small 5cm steps
-			dis = dis + stepB;
-			translate(tg, 0, 0, stepB);
-			x0, _, z0 = getWorldTranslation(tg);
+		
+		if lookForIsland then
+			while courseplay:isField(x0,z0,0.1,0.1) do --then backtrace in small 5cm steps
+				dis = dis + stepB;
+				translate(tg, 0, 0, stepB);
+				x0, _, z0 = getWorldTranslation(tg);
+			end;
+		else
+			while not courseplay:isField(x0,z0,0.1,0.1) do --then backtrace in small 5cm steps
+				dis = dis + stepB;
+				translate(tg, 0, 0, stepB);
+				x0, _, z0 = getWorldTranslation(tg);
+			end;
 		end;
 		-- we found the exact border point (+/- 5cm) - move tg to that point
 		self:dbg(string.format('\t\ttrace back, border point found: x0=%s, z0=%s, dis=%s', tostring(x0), tostring(z0), tostring(dis)), dbgType);
@@ -148,10 +168,17 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 		-- (3) FIND NEXT BORDER POINT 10cm AWAY
 		-- now we rotate this point to have it following the edge direction
 		x0, _, z0 = getWorldTranslation(probe1);
-		while not courseplay:isField(x0, z0, 0.1, 0.1) do
-			rotate(tg,0,.001,0); -- rotate by 0.0573 deg
-			x0, _, z0 = getWorldTranslation(probe1);
-		end;
+		if lookForIsland then 
+			while courseplay:isField(x0, z0, 0.1, 0.1) do
+				rotate(tg,0,.001,0); -- rotate by 0.0573 deg
+				x0, _, z0 = getWorldTranslation(probe1);
+			end;
+		else
+			while not courseplay:isField(x0, z0, 0.1, 0.1) do
+				rotate(tg,0,.001,0); -- rotate by 0.0573 deg
+				x0, _, z0 = getWorldTranslation(probe1);
+			end;
+		end
 		self:dbg('\tProbe1 is on field edge')
 
 		local _,prevRot,_ = getRotation(tg);
@@ -162,10 +189,10 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 			local px,_,pz = getWorldTranslation(probe1);
 			local rotAngle = 0.1; -- 5.73 deg
 
-			local return2field = not courseplay:isField(px, pz, 0.1, 0.1); --there is NO guarantee that probe1 (px,pz) is in field just because tg is!
+			local return2field = not courseplay:isField(px, pz, 0.1, 0.1) or lookForIsland and courseplay:isField(px, pz, 0.1, 0.1) ; --there is NO guarantee that probe1 (px,pz) is in field just because tg is!
 			self:dbg(string.format('return to field first : %s', tostring(return2field)), dbgType);
 			local cnt = 2*math.pi/0.1;
-			while courseplay:isField(px, pz, 0.1, 0.1) or return2field do
+			while courseplay:isField(px, pz, 0.1, 0.1) or lookForIsland and courseplay:isField(px, pz, 0.1, 0.1 or return2field do
 				cnt = cnt - .1;
 				rotate(tg,0,-rotAngle,0);
 				px,_,pz = getWorldTranslation(probe1);
@@ -182,7 +209,7 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 
 			-- trace back into field in 0.573 deg steps
 			local cnt, maxcnt = 0, 0;
-			while not courseplay:isField(px, pz, 0.1, 0.1) do
+			while not courseplay:isField(px, pz, 0.1, 0.1) or lookForIsland and courseplay:isField(px, pz, 0.1, 0.1 do
 				rotate(tg,0,0.01,0)
 				px,_,pz = getWorldTranslation(probe1);
 				--self:dbg('\t\trotate back', dbgType);
@@ -198,7 +225,7 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 				end;
 			end;
 
-			if not courseplay:isField(px, pz, 0.1, 0.1) then
+			if not courseplay:isField(px, pz, 0.1, 0.1) or lookForIsland and courseplay:isField(px, pz, 0.1, 0.1 then
 				self:dbg('\tlost point', dbgType);
 				break;
 			end;
@@ -251,9 +278,14 @@ function courseplay.fields:getSingleFieldEdge(initObject, scanStep, maxN, random
 	end;
 end;
 
-function courseplay.fields:setSingleFieldEdgePath(initObject, initX, initZ, scanStep, maxN, numDirectionTries, fieldNum, returnPoints, dbgType)
+function courseplay.fields:setSingleFieldEdgePath(initObject, initX, initZ, scanStep, maxN, numDirectionTries, fieldNum, returnPoints, dbgType, lookForIsland)
 	for try=1,numDirectionTries do
-		local edgePoints, xValues, zValues = self:getSingleFieldEdge(initObject, scanStep, maxN, try > 1, dbgType);
+		local edgePoints, xValues, zValues
+		if lookForIsland then
+			edgePoints, xValues, zValues = self:getSingleFieldEdge(initObject, scanStep, maxN, try > 1, dbgType, true);
+		else
+			edgePoints, xValues, zValues = self:getSingleFieldEdge(initObject, scanStep, maxN, try > 1, dbgType);
+		end
 
 		if edgePoints then
 			local numEdgePoints = #edgePoints;
