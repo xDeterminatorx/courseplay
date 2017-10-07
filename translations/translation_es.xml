@@ -221,6 +221,7 @@
 		<text name="COURSEPLAY_PICKUP_JAMMED" 							 text=": la cargadora esta bloqueada" />
 		<text name="COURSEPLAY_BALER_NEEDS_NETS" 						 text=": la encintadora necesita nuevos rollos" />
 		<text name="COURSEPLAY_SCAN_CURRENT_FIELD_EDGES" 				 text="Calcular el perímetro del campo actual" />
+		<text name="COURSEPLAY_SCAN_ISLAND_FIELD_EDGES" 				 text="Calculate island of current field's edge path" /> <!-- TODO: TRANSLATION!  -->
 		<text name="COURSEPLAY_CURRENT_FIELD_EDGE_PATH_NUMBER" 			 text="Perímetro del campo número" />
 		<text name="COURSEPLAY_ADD_CUSTOM_FIELD_EDGE_PATH_TO_LIST" 		 text="Añadir perímetro del campo %d a la lista" />
 		<text name="COURSEPLAY_OVERWRITE_CUSTOM_FIELD_EDGE_PATH_IN_LIST" text="Sobrescribir el perímetro del campo %d de la lista" />

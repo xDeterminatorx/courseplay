@@ -305,6 +305,8 @@ function courseplay:executeFunction(self, func, value, page)
 						courseplay:setCustomSingleFieldEdge(self);
 					elseif line == 5 and self.cp.fieldEdge.customField.fieldNum > 0 then
 						courseplay:addCustomSingleFieldEdgeToList(self);
+					elseif line == 6 and self.cp.fieldEdge.customField.isCreated ~= nil then
+						courseplay:setCustomIslandEdge(self)
 					end;
 				end;
 			end; --END if not self:getIsCourseplayDriving()

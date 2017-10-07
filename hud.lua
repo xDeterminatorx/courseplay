@@ -802,6 +802,7 @@ function courseplay.hud:loadPage(vehicle, page)
 				vehicle.cp.hud.content.pages[1][3][1].text = courseplay:loc('COURSEPLAY_SCAN_CURRENT_FIELD_EDGES');
 				if vehicle.cp.fieldEdge.customField.isCreated then
 					vehicle.cp.hud.content.pages[1][4][1].text = courseplay:loc('COURSEPLAY_CURRENT_FIELD_EDGE_PATH_NUMBER');
+					vehicle.cp.hud.content.pages[1][6][1].text = courseplay:loc('COURSEPLAY_SCAN_CURRENT_ISLAND_EDGES');
 					if vehicle.cp.fieldEdge.customField.fieldNum > 0 then
 						vehicle.cp.hud.content.pages[1][4][2].text = tostring(vehicle.cp.fieldEdge.customField.fieldNum);
 						if vehicle.cp.fieldEdge.customField.selectedFieldNumExists then
@@ -1530,6 +1531,10 @@ function courseplay.hud:setupVehicleHud(vehicle)
 	courseplay.button:new(vehicle, 1, { 'iconSprite.png', 'navMinus' }, 'setCustomFieldEdgePathNumber', -1, self.buttonPosX[2], self.linesButtonPosY[4], wSmall, hSmall, 4, -5, false);
 	courseplay.button:new(vehicle, 1, { 'iconSprite.png', 'navPlus' },  'setCustomFieldEdgePathNumber',  1, self.buttonPosX[1], self.linesButtonPosY[4], wSmall, hSmall, 4,  5, false);
 	courseplay.button:new(vehicle, 1, nil, 'setCustomFieldEdgePathNumber', 1, mouseWheelArea.x, self.linesButtonPosY[4], mouseWheelArea.w, mouseWheelArea.h, 4, 5, true, true);
+	
+	--Island edge path
+	courseplay.button:new(vehicle, 1, { 'iconSprite.png', 'cancel' }, 'clearIslandEdge', nil, self.buttonPosX[2], self.linesButtonPosY[6], wSmall, hSmall, 6, nil, false);
+	courseplay.button:new(vehicle, 1, { 'iconSprite.png', 'eye' }, 'toggleIslandFieldEdgePathShow', nil, self.buttonPosX[1], self.linesButtonPosY[6], wSmall, hSmall, 6, nil, false);
 
 	-- Find first waypoint
 	courseplay.button:new(vehicle, 1, { 'iconSprite.png', 'search' }, 'toggleFindFirstWaypoint', nil, topIconsX[1], self.topIconsY, wMiddle, hMiddle, nil, nil, false, false, true, courseplay:loc('COURSEPLAY_SEARCH_FOR_FIRST_WAYPOINT'));

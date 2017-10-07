@@ -1397,6 +1397,9 @@ function courseplay:setFieldEdgePath(vehicle, changeDir, force)
 	if vehicle.cp.fieldEdge.customField.show then
 		courseplay:toggleCustomFieldEdgePathShow(vehicle, false);
 	end;
+	if vehicle.cp.fieldEdge.island.show then
+		courseplay:toggleIslandEdgePathShow(vehicle, false);
+	end;
 	courseplay:validateCourseGenerationData(vehicle);
 end;
 
@@ -1404,6 +1407,12 @@ function courseplay:toggleSelectedFieldEdgePathShow(vehicle, force)
 	vehicle.cp.fieldEdge.selectedField.show = Utils.getNoNil(force, not vehicle.cp.fieldEdge.selectedField.show);
 	--print(string.format("%s: selectedField.show=%s", nameNum(vehicle), tostring(vehicle.cp.fieldEdge.selectedField.show)));
 	courseplay.buttons:setActiveEnabled(vehicle, "selectedFieldShow");
+end;
+
+function courseplay:toggleIslandPathShow(vehicle, force)
+	vehicle.cp.fieldEdge.selectedField.show = Utils.getNoNil(force, not vehicle.cp.fieldEdge.selectedField.show);
+	--print(string.format("%s: selectedField.show=%s", nameNum(vehicle), tostring(vehicle.cp.fieldEdge.selectedField.show)));
+	courseplay.buttons:setActiveEnabled(vehicle, "selectedIslandShow");
 end;
 
 --CUSTOM SINGLE FIELD EDGE PATH
@@ -1426,13 +1435,41 @@ function courseplay:setCustomSingleFieldEdge(vehicle)
 	courseplay:validateCanSwitchMode(vehicle);
 end;
 
+--Look for Island on Custom Generated Fields
+function courseplay:setCustomIslandEdge(vehicle)
+	--print(string.format("%s: call setCustomSingleFieldEdge()", nameNum(vehicle)));
+
+	local x,y,z = getWorldTranslation(vehicle.rootNode);
+	local isField = x and z and courseplay:isField(x, z, 0.1, 0.1);
+	courseplay.fields:dbg(string.format("Island field scan: x,z=%.1f,%.1f, isField=%s", x, z, tostring(isField)), 'customLoad');
+	vehicle.cp.fieldEdge.island.points = nil;
+	if not isField then
+		local edgePoints = courseplay.fields:setSingleFieldEdgePath(vehicle.rootNode, x, z, 1, 500, 10, nil, true, 'customLoad');
+		vehicle.cp.fieldEdge.island.points = edgePoints;
+		vehicle.cp.fieldEdge.island.numPoints = edgePoints ~= nil and #edgePoints or 0;
+	end;
+
+	--print(tableShow(vehicle.cp.fieldEdge.customField.points, nameNum(vehicle) .. " fieldEdge.customField.points"));
+	vehicle.cp.fieldEdge.island.isCreated = vehicle.cp.fieldEdge.island.points ~= nil;
+	courseplay:toggleCustomFieldEdgePathShow(vehicle, vehicle.cp.fieldEdge.island.isCreated);
+	courseplay:validateCanSwitchMode(vehicle);
+end;
+
 function courseplay:clearCustomFieldEdge(vehicle)
 	vehicle.cp.fieldEdge.customField.points = nil;
 	vehicle.cp.fieldEdge.customField.numPoints = 0;
 	vehicle.cp.fieldEdge.customField.isCreated = false;
 	courseplay:setCustomFieldEdgePathNumber(vehicle, nil, 0);
-	courseplay:toggleCustomFieldEdgePathShow(vehicle, false);
+	courseplay:toggleCustomFieldEdgePathShow(vehicle, false);	
 	courseplay:validateCanSwitchMode(vehicle);
+end;
+
+function courseplay:clearIslandEdge(vehicle)
+	vehicle.cp.fieldEdge.island.points = nil;
+	vehicle.cp.fieldEdge.island.numPoints = 0;
+	vehicle.cp.fieldEdge.island.isCreated = false;
+	courseplay:setIslandFieldEdgePathNumber(vehicle, nil, 0);
+	courseplay:toggleIslandFieldEdgePathShow(vehicle, false);
 end;
 
 function courseplay:toggleCustomFieldEdgePathShow(vehicle, force)
@@ -1441,11 +1478,18 @@ function courseplay:toggleCustomFieldEdgePathShow(vehicle, force)
 	courseplay.buttons:setActiveEnabled(vehicle, "customFieldShow");
 end;
 
+function courseplay:toggleIslandFieldEdgePathShow(vehicle, force)
+	vehicle.cp.fieldEdge.island.show = Utils.getNoNil(force, not vehicle.cp.fieldEdge.island.show);
+	--print(string.format("%s: customField.show=%s", nameNum(vehicle), tostring(vehicle.cp.fieldEdge.customField.show)));
+	courseplay.buttons:setActiveEnabled(vehicle, "islandFieldShow");
+end;
+
 function courseplay:setCustomFieldEdgePathNumber(vehicle, changeBy, force)
 	vehicle.cp.fieldEdge.customField.fieldNum = force or Utils.clamp(vehicle.cp.fieldEdge.customField.fieldNum + changeBy, 0, courseplay.fields.customFieldMaxNum);
 	vehicle.cp.fieldEdge.customField.selectedFieldNumExists = courseplay.fields.fieldData[vehicle.cp.fieldEdge.customField.fieldNum] ~= nil;
 	--print(string.format("%s: customField.fieldNum=%d, selectedFieldNumExists=%s", nameNum(vehicle), vehicle.cp.fieldEdge.customField.fieldNum, tostring(vehicle.cp.fieldEdge.customField.selectedFieldNumExists)));
 end;
+
 
 function courseplay:addCustomSingleFieldEdgeToList(vehicle)
 	--print(string.format("%s: call addCustomSingleFieldEdgeToList()", nameNum(vehicle)));
@@ -1453,13 +1497,21 @@ function courseplay:addCustomSingleFieldEdgeToList(vehicle)
 		fieldNum = vehicle.cp.fieldEdge.customField.fieldNum;
 		points = vehicle.cp.fieldEdge.customField.points;
 		numPoints = vehicle.cp.fieldEdge.customField.numPoints;
+		islandPoints = vehicle.cp.fieldEdge.island.points;
+		islandNumPoints = vehicle.cp.fieldEdge.island.numPoints;
 		name = string.format("%s %d (%s)", courseplay:loc('COURSEPLAY_FIELD'), vehicle.cp.fieldEdge.customField.fieldNum, courseplay:loc('COURSEPLAY_USER'));
 		isCustom = true;
 	};
 	local area, _, dimensions = courseplay.fields:getPolygonData(data.points, nil, nil, true);
+	local islandArea, islandDimensions 
+	if data.islandPoints then
+		islandArea, _, islandDimensions courseplay.fields:getPolygonData(data.islandPoints, nil, nil, true);
+	end;
 	data.areaSqm = area;
 	data.areaHa = area / 10000;
 	data.dimensions = dimensions;
+	data.islandArea = islandArea
+	data.islandDimensions = islandDimensions
 	data.fieldAreaText = courseplay:loc('COURSEPLAY_SEEDUSAGECALCULATOR_FIELD'):format(data.fieldNum, courseplay.fields:formatNumber(data.areaHa, 2), g_i18n:getText('unit_areaShort'));
 	data.seedUsage, data.seedPrice, data.seedDataText = courseplay.fields:getFruitData(area);
 
@@ -1483,6 +1535,9 @@ function courseplay:showFieldEdgePath(vehicle, pathType)
 	elseif pathType == "selectedField" then
 		points = courseplay.fields.fieldData[vehicle.cp.fieldEdge.selectedField.fieldNum].points;
 		numPoints = courseplay.fields.fieldData[vehicle.cp.fieldEdge.selectedField.fieldNum].numPoints;
+	elseif pathType == "island" then
+		points = vehicle.cp.fieldEdge.island.points;
+		numPoints = vehicle.cp.fieldEdge.island.numPoints;
 	end;
 
 	if numPoints > 0 then

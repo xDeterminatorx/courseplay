@@ -225,6 +225,7 @@
 		<text name="COURSEPLAY_PICKUP_JAMMED"							 text=": Podbierak się zablokował" />
 		<text name="COURSEPLAY_BALER_NEEDS_NETS"						 text=": Prasa potrzebuje nowych rolek siatki" />
 		<text name="COURSEPLAY_SCAN_CURRENT_FIELD_EDGES"				 text="Oblicz ścieżkę krawędzi obecnego pola" />
+		<text name="COURSEPLAY_SCAN_ISLAND_FIELD_EDGES" 				 text="Calculate island of current field's edge path" /> <!-- TODO: TRANSLATION!  -->
 		<text name="COURSEPLAY_CURRENT_FIELD_EDGE_PATH_NUMBER"			 text="Numer ścieżki krawędzi obecnego pola" />
 		<text name="COURSEPLAY_ADD_CUSTOM_FIELD_EDGE_PATH_TO_LIST"		 text="Dodaj krawędź ścieżki pola %d do listy" />
 		<text name="COURSEPLAY_OVERWRITE_CUSTOM_FIELD_EDGE_PATH_IN_LIST" text="Zastąp krawędź ścieżki pola %d na liście" />

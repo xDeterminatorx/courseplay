@@ -269,6 +269,8 @@ function courseplay.button:render()
 					elseif prm > 0 then
 						show = not vehicle.cp.canDrive and vehicle.cp.fieldEdge.customField.isCreated and vehicle.cp.fieldEdge.customField.fieldNum < courseplay.fields.customFieldMaxNum;
 					end;
+				elseif fn == "clearIslandEdge" or fn == "toggleIslandFieldEdgePathShow" then 
+					show = not vehicle.cp.canDrive and vehicle.cp.fieldEdge.island.isCreated;
 				elseif fn == 'toggleFindFirstWaypoint' then
 					show = vehicle.cp.canDrive and not vehicle:getIsCourseplayDriving() and not vehicle.cp.isRecording and not vehicle.cp.recordingIsPaused;
 				elseif fn == 'stop_record' or fn == 'setRecordingPause' or fn == 'delete_waypoint' or fn == 'set_waitpoint' or   fn == 'set_unloadPoint' or  fn == 'set_crossing' or fn == 'setRecordingTurnManeuver' or fn == 'change_DriveDirection' or fn == 'addSplitRecordingPoints' then
