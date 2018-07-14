@@ -1048,8 +1048,8 @@ function courseplay:drive(self, dt)
 						self.nextMovingDirection = 1
 					end;
 				end;
-
-				lz = getDirection(self, lz)
+				getClosestWaypointData(self)
+				--lz = getDirection(self, lz)
 				
 				--self,dt,steeringAngleLimit,acceleration,slowAcceleration,slowAngleLimit,allowedToDrive,moveForwards,lx,lz,maxSpeed,slowDownFactor,angle
 				AIVehicleUtil.driveInDirection(self, dt, self.cp.steeringAngle, acceleration, 0.5, 20, true, fwd, lx, lz, refSpeed, 1);
@@ -1129,24 +1129,45 @@ function getTarget(vehicle)
 
 end
 
+function getWaypointPosition(vehicle, ix)
+	local x, z = vehicle.Waypoints[ix].cx, vehicle.Waypoints[ix].cz
+	local y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, x, 0, z)
+	return x, y, z
+end
+
 -- find point on the course closest to the vehicle
 function getClosestWaypointData(vehicle)
+	local lookAheadDistance = 5
 	local prevD, currD = math.huge, math.huge
 	local currentWpNode = courseplay.createNode( 'currentWpNode', 0, 0, 0)
-	-- start with the current wp and go back a few steps while until the vehicle is in front of the wp
+	local vx, vy, vz = getWorldTranslation(vehicle.cp.DirectionNode or vehicle.rootNode);
+	-- start with the current wp and go back a few steps until the vehicle is in front of the wp
 	local ix = vehicle.cp.waypointIndex
+	local cx, cy, cz
 	while ix >= math.max(1, vehicle.cp.waypointIndex - 5) do
-		local ctx, ctz = vehicle.Waypoints[ix].cx, vehicle.Waypoints[ix].cz
-		local cty = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, ctx, 0, ctz)
-		setTranslation(currentWpNode, ctx, cty, ctz)
-		setRotation(currentWpNode, math.rad( vehicle.Waypoints[ix].angle))
-		local vx, vy, vz = getWorldTranslation(vehicle.cp.DirectionNode or vehicle.rootNode);
+		cx, cy, cz = getWaypointPosition(vehicle, ix)
+		setTranslation(currentWpNode, cx, cy, cz)
+		setRotation(currentWpNode, 0, math.rad( vehicle.Waypoints[ix].angle), 0)
 		local dx, dy, dz = worldToLocal(currentWpNode, vx, vy, vz);
 		if dz >= 0 then
-			-- vehicle is in front of this waypoint.
-
+			-- vehicle is in front of this waypoint, this is our relevant segment
+			drawDebugLine(cx, cy + 3, cz, 1, 1, 0, cx, cy, cz, 1, 1, 0);
+			DebugUtil.drawDebugNode(currentWpNode, tostring(ix))
+			break
 		end
 		prevD = currD
+		ix = ix - 1
+	end
+	-- Now, from this point forward we search for the goal point, which is the one
+	-- lying lookAheadDistance in front of us on the path
+	while ix < #vehicle.Waypoints do
+		cx, cy, cz = getWaypointPosition(vehicle, ix)
+		local nx, ny, nz = getWaypointPosition(vehicle, ix + 1)
+		local d = courseplay:distance(cx, cz, nx, nz)
+		if d > lookAheadDistance then
+			-- our goal point is between ix and ix + 1, let's find it
+
+		end
 	end
 	courseplay.destroyNode( currentWpNode )
 end
