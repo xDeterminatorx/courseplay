@@ -267,7 +267,6 @@ function courseplay:drive(self, dt)
 
 
 	-- the tipper that is currently loaded/unloaded
-	local activeTipper;
 	local isBypassing = false
 	local isCrawlingToWait = false
 	local isWaitingThisLoop = false
@@ -1137,22 +1136,30 @@ end
 
 -- find point on the course closest to the vehicle
 function getClosestWaypointData(vehicle)
-	local lookAheadDistance = 5
+	local tx, ty, tz
 	local prevD, currD = math.huge, math.huge
 	local currentWpNode = courseplay.createNode( 'currentWpNode', 0, 0, 0)
 	local vx, vy, vz = getWorldTranslation(vehicle.cp.DirectionNode or vehicle.rootNode);
 	-- start with the current wp and go back a few steps until the vehicle is in front of the wp
 	local ix = vehicle.cp.waypointIndex
 	local cx, cy, cz
-	while ix >= math.max(1, vehicle.cp.waypointIndex - 5) do
+	while ix > math.max(1, vehicle.cp.waypointIndex - 5) do
+		-- safety harness
+		if not vehicle.Waypoints[ix] or not vehicle.Waypoints[ix].cx then return end
 		cx, cy, cz = getWaypointPosition(vehicle, ix)
+		-- move the currentWpNode to the current waypoint position
 		setTranslation(currentWpNode, cx, cy, cz)
-		setRotation(currentWpNode, 0, math.rad( vehicle.Waypoints[ix].angle), 0)
+		setRotation(currentWpNode, 0, math.rad(vehicle.Waypoints[ix].angle), 0)
 		local dx, dy, dz = worldToLocal(currentWpNode, vx, vy, vz);
 		if dz >= 0 then
 			-- vehicle is in front of this waypoint, this is our relevant segment
-			drawDebugLine(cx, cy + 3, cz, 1, 1, 0, cx, cy, cz, 1, 1, 0);
-			DebugUtil.drawDebugNode(currentWpNode, tostring(ix))
+			-- move the currentWpNode to the vehicle position projected on the path
+			vx, vy, vz = localToWorld(currentWpNode, 0, 0, dz)
+			setTranslation(currentWpNode, vx, vy, vz)
+			if courseplay.debugChannels[12] then
+				drawDebugLine(vx, vy + 3, vz, 1, 1, 0, vx, vy, vz, 1, 1, 0);
+				DebugUtil.drawDebugNode(currentWpNode, tostring(ix) .. '\nprojected\nvehicle\nposition')
+			end
 			break
 		end
 		prevD = currD
@@ -1160,28 +1167,71 @@ function getClosestWaypointData(vehicle)
 	end
 	-- Now, from this point forward we search for the goal point, which is the one
 	-- lying lookAheadDistance in front of us on the path
+	local lookAheadDistance = 10
+	local epsilon = 0.01
+	local d
+	-- cx/cy/cz is at the projected vehicle position here
 	while ix < #vehicle.Waypoints do
-		cx, cy, cz = getWaypointPosition(vehicle, ix)
-		local nx, ny, nz = getWaypointPosition(vehicle, ix + 1)
-		local d = courseplay:distance(cx, cz, nx, nz)
+		local nx, ny, nz = getWaypointPosition(vehicle, ix)
+		-- distance between the projected vehicle position and the next waypoint
+		d = courseplay:distance(vx, vz, nx, nz)
 		if d > lookAheadDistance then
 			-- our goal point is between ix and ix + 1, let's find it
+			-- distance between current and next waypoint
+			local dToNext = courseplay:distance(cx, cz, nx, nz)
+			local minDz, maxDz, currentDz, currentRange = 0, dToNext, dToNext / 2, dToNext
+			local goalNode = courseplay.createNode( 'goalNode', 0, 0, 0)
 
+			while currentRange > epsilon do
+				local gx, gy, gz = localToWorld(currentWpNode, 0, 0, currentDz)
+				d = courseplay:distance(vx, vz, gx, gz)
+				if d < lookAheadDistance + epsilon and d > lookAheadDistance - epsilon then
+					-- we are close enough to the goal point.
+					setTranslation(goalNode, gx, gy + 3, gz)
+					tx, ty, tz = localToWorld(goalNode, 0, 0, 0)
+					if courseplay.debugChannels[12] then
+						DebugUtil.drawDebugNode(goalNode, string.format('ix = %d\nd = %.1f\ncr = %.1f\ngoal\npoint', ix, d, currentRange))
+						drawDebugLine(gx, gy + 3, gz, 0, 1, 0, gx, gy, gz, 0, 1, 0);
+					end
+					break
+				end
+				if d < lookAheadDistance then
+					minDz = currentDz
+				else
+					maxDz = currentDz
+				end
+				currentRange = currentRange / 2
+				currentDz = minDz + currentRange
+			end
+			courseplay.destroyNode(goalNode)
+			if courseplay.debugChannels[12] then
+				DebugUtil.drawDebugNode(currentWpNode, string.format('ix = %d\nd = %.1f', ix, d))
+			end
+			break
 		end
+		-- move current position to the next waypoint
+		setTranslation(currentWpNode, nx, ny, nz)
+		setRotation(currentWpNode, 0, math.rad( vehicle.Waypoints[ix].angle), 0)
+		cx, cy, cz = nx, ny, nz
+		ix = ix + 1
 	end
-	courseplay.destroyNode( currentWpNode )
+	--setTranslation(currentWpNode, cx, cy + 3, cz)
+	courseplay.destroyNode(currentWpNode)
+	return tx, ty, tz
 end
 
 function getDirection(vehicle, lz)
-
+	
+	local ctx, cty, ctz = getClosestWaypointData(vehicle)
+	if not ctx then return lz end
 	local dx, _, dz  = worldToLocal(vehicle.cp.DirectionNode, ctx, cty, ctz)
 	local x, _, z = localToWorld(vehicle.cp.DirectionNode, 0, 0, 0)
 	local distance = math.sqrt(dx * dx + dz * dz)
 	local r = distance * distance / 2 / dx
 	local steeringAngle = math.atan(vehicle.cp.distances.frontWheelToRearWheel / r)
 
-	courseplay.debugVehicle(12, vehicle, 'x = %.1f z = %.1f ctx = %.1f, ctz = %.1f', x, z, ctx, ctz )
-	courseplay.debugVehicle(12, vehicle, 'dx = %.1f dz = %.1f l = %.1f, r = %.1f, lz = %.1f steeringAngle = %.1f, minD = %.1f', dx, dz, distance, r, math.deg(math.acos(lz)), math.deg(steeringAngle), minD)
+	--courseplay.debugVehicle(12, vehicle, 'x = %.1f z = %.1f ctx = %.1f, ctz = %.1f', x, z, ctx, ctz )
+	--courseplay.debugVehicle(12, vehicle, 'dx = %.1f dz = %.1f l = %.1f, r = %.1f, lz = %.1f steeringAngle = %.1f, minD = %.1f', dx, dz, distance, r, math.deg(math.acos(lz)), math.deg(steeringAngle), minD)
 
 	return math.cos(steeringAngle)
 end

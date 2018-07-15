@@ -1479,7 +1479,7 @@ function courseplay.generateTurnTypeHeadlandCornerReverseWithCurve(vehicle, turn
 
 	-- start with the easy one, get the center of the forward turning circle (this is based on the targetNode)
 	centerForward.x,_,centerForward.z = localToWorld(turnInfo.targetNode, - turnInfo.direction * turnInfo.turnRadius, 0, 0 )
-	-- create a tranform group there, rotation set to the half angle between turnStart and turnEnd.
+	-- create a transform group there, rotation set to the half angle between turnStart and turnEnd.
 	local forwardCircleCenterNode =
 	courseplay.createNode( "cpForwardCircleCenterNode", centerForward.x, centerForward.z, math.rad( turnInfo.halfAngle ))
 
