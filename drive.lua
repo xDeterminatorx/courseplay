@@ -113,7 +113,8 @@ function courseplay:drive(self, dt)
 	end]]
 
 
-	-- current position
+	-- === CURRENT VEHICLE POSITION ===
+	-- cty is used throughout this function as the terrain height. 
 	local ctx, cty, ctz = getWorldTranslation(self.cp.DirectionNode);
 	if self.Waypoints[self.cp.waypointIndex].rev and self.cp.oldDirectionNode then
 		ctx, cty, ctz = getWorldTranslation(self.cp.oldDirectionNode);
@@ -123,7 +124,8 @@ function courseplay:drive(self, dt)
 		courseplay:setWaypointIndex(self, self.cp.numWaypoints);
 	end;
 
-
+	-- === CURRENT WAYPOINT POSITION ===
+	-- cx, cz only used to get lx, lz (driving direction) unless we are using driveToPoint (which we don't at the moment)
 	if self.cp.mode ~= 7 or (self.cp.mode == 7 and self.cp.modeState ~= 5) then
 		cx, cz = self.Waypoints[self.cp.waypointIndex].cx, self.Waypoints[self.cp.waypointIndex].cz
 	end
@@ -160,8 +162,8 @@ function courseplay:drive(self, dt)
 
 	self.cp.distanceToTarget = courseplay:distance(cx, cz, ctx, ctz);
 
-	--This is the wrong debug channel please place this in the right channel Pops64 writtne on version 05.02.069
-	--courseplay:debug(('ctx=%.2f, ctz=%.2f, cx=%.2f, cz=%.2f, distanceToTarget=%.2f'):format(ctx, ctz, cx, cz, self.cp.distanceToTarget), 2);
+	-- from this point onward, ctx and ctz is not used. cty used only for terrain height		
+	
 	local fwd;
 	local distToChange;
 
@@ -169,9 +171,12 @@ function courseplay:drive(self, dt)
 	local tx, ty, tz = localToWorld(self.cp.DirectionNode, 0, 1, 3); --local tx, ty, tz = getWorldTranslation(self.aiTrafficCollisionTrigger)
 	-- local direction of from DirectionNode to waypoint
 	local lx, lz = AIVehicleUtil.getDriveDirection(self.cp.DirectionNode, cx, cty, cz);
+	
+	-- at this point, we used the current waypoint position and the current vehicle position to calculate 
+	-- lx, lz, that is, the direction we want to drive.
+	
 	-- world direction of from DirectionNode to waypoint
 	local nx, ny, nz = localDirectionToWorld(self.cp.DirectionNode, lx, 0, lz);
-
 
 	if self.cp.mode == 4 or self.cp.mode == 6 then
 		if self.Waypoints[self.cp.waypointIndex].turnStart then
@@ -326,6 +331,7 @@ function courseplay:drive(self, dt)
 			elseif self.cp.waitPoints[3] and self.cp.previousWaypointIndex == self.cp.waitPoints[3] then
 				local isInWorkArea = self.cp.waypointIndex > self.cp.startWork and self.cp.waypointIndex <= self.cp.stopWork;
 				if self.cp.workToolAttached and self.cp.startWork ~= nil and self.cp.stopWork ~= nil and self.cp.workTools ~= nil and not isInWorkArea then
+					-- this call never changes lx or lz
 					allowedToDrive,lx,lz = courseplay:refillWorkTools(self, self.cp.refillUntilPct, allowedToDrive, lx, lz, dt);
 				end;
 				if courseplay:timerIsThrough(self, "fillLevelChange") or self.cp.prevFillLevelPct == nil then
@@ -398,6 +404,7 @@ function courseplay:drive(self, dt)
 				end
 			end;
 		elseif self.cp.mode == 8 then
+			-- this call does not change lx or lz
 			allowedToDrive, lx, lz = courseplay:handleMode8(self, false, true, allowedToDrive, lx, lz, dt);
 		elseif self.cp.mode == 9 then
 			courseplay:setVehicleWait(self, false);
@@ -485,9 +492,11 @@ function courseplay:drive(self, dt)
 			return;
 		elseif (self.cp.mode == 2 or self.cp.mode == 3) and self.cp.waypointIndex < 2 then
 			isBypassing = true
+			-- this changes the direction by changing lx/lz
 			lx, lz = courseplay:isTheWayToTargetFree(self,lx, lz)
 		elseif self.cp.mode == 6 and self.cp.hasBaleLoader and (self.cp.waypointIndex == self.cp.stopWork + 1 or (self.cp.abortWork ~= nil and self.cp.waypointIndex == self.cp.abortWork)) then
 			isBypassing = true
+			-- this changes the direction by changing lx/lz
 			lx, lz = courseplay:isTheWayToTargetFree(self,lx, lz)
 		elseif self.cp.mode ~= 7 and self.cp.mode ~= 10 then
 			if self.cp.modeState ~= 0 then
@@ -504,6 +513,7 @@ function courseplay:drive(self, dt)
 			if self.cp.workToolAttached and self.cp.startWork ~= nil and self.cp.stopWork ~= nil then
 				local isInWorkArea = self.cp.waypointIndex > self.cp.startWork and self.cp.waypointIndex <= self.cp.stopWork;
 				if self.cp.workTools ~= nil and not isInWorkArea then
+					-- lx, lz not changed by this call
 					allowedToDrive,lx,lz = courseplay:refillWorkTools(self, self.cp.refillUntilPct, allowedToDrive, lx, lz, dt);
 				end
 			end;
@@ -515,6 +525,7 @@ function courseplay:drive(self, dt)
 
 			-- MODE 8: REFILL LIQUID MANURE TRANSPORT
 		elseif self.cp.mode == 8 then
+			-- lx, lz not changed by this call
 			allowedToDrive, lx, lz = courseplay:handleMode8(self, true, false, allowedToDrive, lx, lz, dt, tx, ty, tz, nx, ny, nz);
 		end;
 
@@ -665,6 +676,7 @@ function courseplay:drive(self, dt)
 
 		-- MODE 9
 	elseif self.cp.mode == 9 then
+		-- mode9 returns a new direction in lx, lz but does not use the ones passed in at all
 		allowedToDrive,lx,lz  = courseplay:handle_mode9(self,self.cp.totalFillLevelPercent, allowedToDrive,lx,lz, dt);
 		-- MODE 10
 	elseif self.cp.mode == 10 then
