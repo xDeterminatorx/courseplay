@@ -584,6 +584,8 @@ function courseplay:load(savegame)
 
 	courseplay:validateCanSwitchMode(self);
 	courseplay.buttons:setActiveEnabled(self, 'all');
+
+	self.cp.ppc = PurePursuitController:new(self)
 end;
 
 function courseplay:postLoad(savegame)
@@ -1206,6 +1208,9 @@ function courseplay:delete()
 		if self.cp.course2dPdaMapOverlay then
 			self.cp.course2dPdaMapOverlay:delete();
 		end;
+		if self.cp.ppc then
+			self.cp.ppc:delete()
+		end
 	end;
 end;
 

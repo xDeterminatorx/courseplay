@@ -548,6 +548,7 @@ function courseplay:turn(vehicle, dt)
         courseplay:setWaypointIndex(vehicle, vehicle.cp.waypointIndex + 1);
         -- and then to the next wp in front of us.
         courseplay:setWaypointIndex(vehicle, courseplay:getNextFwdPoint(vehicle, true));
+		vehicle.cp.ppc:initialize()
         courseplay:clearTurnTargets(vehicle);
 				return;
 			end;
@@ -601,6 +602,7 @@ function courseplay:turn(vehicle, dt)
 
 				courseplay:setWaypointIndex(vehicle, vehicle.cp.waypointIndex + 1);
 				courseplay:setWaypointIndex(vehicle, courseplay:getNextFwdPoint(vehicle, true));
+				vehicle.cp.ppc:initialize()
 				courseplay:clearTurnTargets(vehicle);
 
 				return;
