@@ -86,6 +86,7 @@ function courseplay:handle_mode4(self, allowedToDrive, workSpeed, refSpeed)
 		end;
 	end
 	--
+	print()
 	if (self.cp.waypointIndex == self.cp.stopWork or self.cp.previousWaypointIndex == self.cp.stopWork) and self.cp.abortWork == nil and not isFinishingWork and self.cp.wait then
 		allowedToDrive = false;
 		CpManager:setGlobalInfoText(self, 'WORK_END');
@@ -95,13 +96,9 @@ function courseplay:handle_mode4(self, allowedToDrive, workSpeed, refSpeed)
 		end;
 	end;
 	
-	local firstPoint = self.cp.previousWaypointIndex == 1;
 	local prevPoint = self.Waypoints[self.cp.previousWaypointIndex];
-	local nextPoint = self.Waypoints[self.cp.waypointIndex];
-	
+
 	local ridgeMarker = prevPoint.ridgeMarker;
-	local turnStart = prevPoint.turnStart;
-	local turnEnd = prevPoint.turnEnd;
 	local specialTool; -- define it, so it will not be an global value anymore
 	
 	for i=1, #(self.cp.workTools) do

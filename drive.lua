@@ -1028,8 +1028,9 @@ function courseplay:drive(self, dt)
 		--	self.cp.waypointIndex, distToChange, self.cp.shortestDistToWp, self.cp.distanceToTarget )
 	end
 
+	self.cp.ppc:update()
 
-	if not self.cp.ppc:shouldChangeWaypoint() or WpUnload or WpLoadEnd or isFinishingWork then
+	if not self.cp.ppc:shouldChangeWaypoint(distToChange) or WpUnload or WpLoadEnd or isFinishingWork then
 		if g_server ~= nil then
 			local acceleration = 1;
 			if self.cp.speedBrake then
@@ -1060,7 +1061,6 @@ function courseplay:drive(self, dt)
 						self.nextMovingDirection = 1
 					end;
 				end;
-				self.cp.ppc:update()
 				--lz = getDirection(self, lz)
 				
 				--self,dt,steeringAngleLimit,acceleration,slowAcceleration,slowAngleLimit,allowedToDrive,moveForwards,lx,lz,maxSpeed,slowDownFactor,angle
@@ -1079,6 +1079,8 @@ function courseplay:drive(self, dt)
 			end
 		end
 	elseif not isWaitingThisLoop then
+		-- SWITCH TO THE NEXT WAYPOINT
+		self.cp.ppc:switchToNextWaypoint()
 		-- reset distance to waypoint
 		self.cp.shortestDistToWp = nil
 		if not self.cp.ppc:atLastWaypoint() then -- = New
@@ -1087,8 +1089,6 @@ function courseplay:drive(self, dt)
 			end
 			if self.cp.mode == 7 and self.cp.modeState == 5 then
 			else
-				-- SWITCH TO THE NEXT WAYPOINT
-				self.cp.ppc:switchToNextWaypoint()
 				courseplay.calculateTightTurnOffset( self )
 				local rev = ""
 				if beforeReverse then
@@ -1101,6 +1101,8 @@ function courseplay:drive(self, dt)
 			end
 		else -- last waypoint: reset some variable
 			if (self.cp.mode == 4 or self.cp.mode == 6) and not self.cp.hasUnloadingRefillingCourse then
+				-- in a typical CP fashion we leave it to the reader to find out why there's a special
+				-- handling for modes 4 and 6 :(
 			else
 				courseplay:setWaypointIndex(self, 1);
 				self.cp.ppc:initialize()

@@ -72,6 +72,7 @@ function PurePursuitController:initialize()
 	self:setNodeToWaypoint(self.relevantWpNode, self.relevantIx)
 	self:setNodeToWaypoint(self.nextWpNode, self.relevantIx)
 	courseplay.debugVehicle(12, self.vehicle, 'PPC: initialized to waypoint %d', self.relevantIx)
+	self.enabled = true
 end
 
 function PurePursuitController:getCurrentWaypointIx()
@@ -88,6 +89,24 @@ function PurePursuitController:setNodeToWaypoint(node, ix)
 	local x, y, z = self:getWaypointPosition(ix)
 	setTranslation(node, x, y, z)
 	setRotation(node, 0, math.rad(self.vehicle.Waypoints[ix].angle), 0)
+end
+
+-- Allow ix > #Waypoints, in that case move the node lookAheadDistance beyond the last WP
+function PurePursuitController:setNodeToWaypointOrBeyond(node, ix)
+	if ix <= #self.vehicle.Waypoints then
+		self:setNodeToWaypoint(node, ix)
+	else
+		-- beyond the last, so put it on the last for now
+		-- but use the direction of the one before the last as the last one's is bogus
+		self:setNodeToWaypoint(node, #self.vehicle.Waypoints - 1)
+		local _, yRot, _ = getRotation(node)
+		self:setNodeToWaypoint(node, #self.vehicle.Waypoints - 1)
+		setRotation(node, 0, yRot, 0)
+		-- And now, move ahead a bit.
+		local nx, ny, nz = localToWorld(node, 0, 0, self.lookAheadDistance)
+		setTranslation(node, nx, ny, nz)
+		courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving node beyond last')
+	end
 end
 
 function PurePursuitController:getWaypointPosition(ix)
@@ -118,14 +137,7 @@ function PurePursuitController:findRelevantSegment()
 		self.relevantIx = self.relevantIx + 1
 		courseplay.debugVehicle(12, self.vehicle, 'PPC: relevant waypoint: %d, crosstrack error: %.1f', self.relevantIx, crossTrackError)
 		self:setNodeToWaypoint(self.relevantWpNode, self.relevantIx)
-		if self.relevantIx < #self.vehicle.Waypoints then
-			self:setNodeToWaypoint(self.nextWpNode, self.relevantIx + 1)
-		else
-			-- we are already at the last waypoint, there's no next. So put it beyond the last one
-			local nx, ny, nz = localToWorld(self.nextWpNode, 0, 0, self.lookAheadDistance)
-			setTranslation(self.nextWpNode, nx, ny, nz)
-			courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving next waypoint node beyond last')
-		end
+		self:setNodeToWaypointOrBeyond(self.nextWpNode, self.relevantIx + 1)
 	end
 	setTranslation(self.projectedPosNode, px, py, pz)
 	setRotation(self.projectedPosNode, 0, yRot, 0)
@@ -140,63 +152,61 @@ end
 -- lying lookAheadDistance in front of us on the path
 function PurePursuitController:findGoalPoint()
 	local epsilon = 0.01
-	local d
+	local d1, d2
 	local tx, ty, tz
 
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode);
 
-	local cx, cy, cz = getWorldTranslation(self.relevantWpNode)
-	local dFromCurrent = courseplay:distance(cx, cz, vx, vz)
-	local nx, ny, nz = getWorldTranslation(self.nextWpNode)
-	local dFromNext = courseplay:distance(nx, nz, vx, vz)
-
-	if dFromCurrent > self.lookAheadDistance and dFromNext > self.lookAheadDistance then
-		-- too far from our next waypoint, set the goal to the current WP
-		self:setNodeToWaypoint(self.goalNode, self.relevantIx)
-		DebugUtil.drawDebugNode(self.goalNode, string.format('relevantix = %d\ntoo\nfar', self.relevantIx))
-		return
-	end
-
-	-- create a node at current wp node. We'll move this up on the path until we reach the segment
+	-- create a node at the relevant wp node. We'll move this up on the path until we reach the segment
 	-- in lookAheadDistance
-	local helperNode = courseplay.createNode( self.name .. 'helperNode', 0, 0, 0)
-	setTranslation(helperNode, cx, cy, cz)
-	local _, yRot, _ = getRotation(self.relevantWpNode)
-	setRotation(helperNode, 0, yRot, 0)
+	local node1 = courseplay.createNode( self.name .. 'node1', 0, 0, 0)
+	local node2 = courseplay.createNode( self.name .. 'node2', 0, 0, 0)
 
 	local isGoalPointValid = false
 
-	local ix = self.relevantIx + 1
+	local ix = self.relevantIx
 	while ix <= #self.vehicle.Waypoints do
-		nx, ny, nz = self:getWaypointPosition(ix)
-		-- di	stance between the vehicle position and the next waypoint
-		d = courseplay:distance(vx, vz, nx, nz)
-		if d > self.lookAheadDistance then
+		self:setNodeToWaypoint(node1, ix)
+		self:setNodeToWaypointOrBeyond(node2, ix + 1)
+		local x1, y1, z1 = getWorldTranslation(node1)
+		local x2, y2, z2 = getWorldTranslation(node2)
+		-- distance between the vehicle position and the end of the relevant segment
+		d1 = courseplay:distance(vx, vz, x2, z2)
+		if d1 > self.lookAheadDistance then
+			d2 = courseplay:distance(x1, z1, vx, vz)
+			if d2 > self.lookAheadDistance then
+				-- too far from either end of the relavant segment, set the goal to the relevant WP
+				self:setNodeToWaypoint(self.goalNode, self.relevantIx)
+				DebugUtil.drawDebugNode(self.goalNode, string.format('relevantix = %d\ntoo\nfar', self.relevantIx))
+				break
+			end
 			-- our goal point is now between ix and ix + 1, let's find it
 			-- distance between current and next waypoint
-			local dToNext = courseplay:distance(cx, cz, nx, nz)
+			local dToNext = courseplay:distance(x1, z1, x2, z2)
 			local minDz, maxDz, currentDz, currentRange = 0, dToNext, dToNext / 2, dToNext
-			-- this is the current waypoint for the rest of Courseplay, the waypoint we are driving to
-			self:setNodeToWaypoint(self.currentWpNode, ix)
-			self.currentIx = ix
+			-- this is the current waypoint for the rest of Courseplay code, the waypoint we are driving to
+			self:setNodeToWaypointOrBeyond(self.currentWpNode, ix + 1)
+			self:setCurrentIx(ix + 1)
 
+			-- successive approximation of the intersection between this path segment and the
+			-- lookAheadDistance radius circle around the vehicle. That intersection point will be our goal point
 			while currentRange > epsilon do
-				local gx, gy, gz = localToWorld(helperNode, 0, 0, currentDz)
-				d = courseplay:distance(vx, vz, gx, gz)
-				if d < self.lookAheadDistance + epsilon and d > self.lookAheadDistance - epsilon then
+				local gx, gy, gz = localToWorld(node1, 0, 0, currentDz)
+				d1 = courseplay:distance(vx, vz, gx, gz)
+				if d1 < self.lookAheadDistance + epsilon and d1 > self.lookAheadDistance - epsilon then
 					-- we are close enough to the goal point.
 					gy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, gx, 0, gz)
 					setTranslation(self.goalNode, gx, gy, gz)
 					isGoalPointValid = true
 					tx, ty, tz = localToWorld(self.goalNode, 0, 0, 0)
 					if courseplay.debugChannels[12] then
-						DebugUtil.drawDebugNode(self.goalNode, string.format('ix = %d\nd = %.1f\ncr = %.1f\ngoal\npoint', ix, d, currentRange))
+						DebugUtil.drawDebugNode(self.goalNode, string.format('ix = %d\nd = %.1f\ncr = %.1f\ngoal\npoint', ix, d1, currentRange))
 						DebugUtil.drawDebugNode(self.currentWpNode, string.format('ix = %d\ncurrent\nwaypoint', ix))
 						drawDebugLine(gx, gy + 3, gz, 0, 1, 0, gx, gy + 1, gz, 0, 1, 0);
 					end
 					break
 				end
-				if d < self.lookAheadDistance then
+				if d1 < self.lookAheadDistance then
 					minDz = currentDz
 				else
 					maxDz = currentDz
@@ -206,14 +216,10 @@ function PurePursuitController:findGoalPoint()
 			end
 			break
 		end
-		-- move current position to the next waypoint
-		setTranslation(helperNode, nx, ny, nz)
-		setRotation(helperNode, 0, math.rad( self.vehicle.Waypoints[ix].angle), 0)
-		--DebugUtil.drawDebugNode(helperNode, string.format('ix = %d\nhelper\nnode', ix))
-		cx, cy, cz = nx, ny, nz
 		ix = ix + 1
 	end
-	courseplay.destroyNode(helperNode)
+	courseplay.destroyNode(node1)
+	courseplay.destroyNode(node2)
 	self:setGoalPointValid(isGoalPointValid)
 	return tx, ty, tz
 end
@@ -226,6 +232,24 @@ function PurePursuitController:setGoalPointValid(isGoalPointValid)
 			courseplay.debugVehicle(12, self.vehicle, 'PPC: Goal point lost.')
 		end
 		self.isGoalPointValid = isGoalPointValid
+	end
+end
+
+function PurePursuitController:setCurrentIx(ix)
+	if ix ~= self.currentIx then
+		courseplay.debugVehicle(12, self.vehicle, 'PPC: current waypoint index %d', ix)
+	end
+	self.currentIx = math.min(ix, #self.vehicle.Waypoints)
+	if self.vehicle.Waypoints[self.currentIx].rev then
+		if self.enabled then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is reverse, deactivate PPC.', self.currentIx)
+		end
+		self.enabled = false
+	else
+		if not self.enabled then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is not reverse, (re)activate PPC.', self.currentIx)
+		end
+		self.enabled = true
 	end
 end
 
@@ -243,7 +267,7 @@ end
 
 function PurePursuitController:isActive()
 	-- for now, turn on/off PPC with debug channel 7.
-	return courseplay.debugChannels[7]
+	return courseplay.debugChannels[7] and self.enabled
 end
 
 function PurePursuitController:getCurrentWaypointPosition()
@@ -264,21 +288,28 @@ function PurePursuitController:switchToNextWaypoint()
 	end
 end
 
+-- This is to be used in drive.lua in place of the dist < distToChange check, that is, when we
+-- reached the next waypoint.
 function PurePursuitController:shouldChangeWaypoint(distToChange)
+	local shouldChangeWaypoint
 	if self:isActive() then
-		-- true when at the last waypoint to trigger the last waypoint processing in drive.lua (which was triggerd by
-		-- the distToChange condition before PPC
-		shouldChangeWaypoint = self:getCurrentWaypointIx() ~= self.vehicle.cp.waypointIndex or self:atLastWaypoint()
+		-- true when the current waypoint calculated by PPC does not match the CP waypoint anymore, or
+		-- true when at the last waypoint (to trigger the last waypoint processing in drive.lua (which was triggerd by
+		-- the distToChange condition before PPC)
+		shouldChangeWaypoint = (self:getCurrentWaypointIx() ~= self.vehicle.cp.waypointIndex) or self:atLastWaypoint()
 	else
 		shouldChangeWaypoint = self.vehicle.cp.distanceToTarget <= distToChange
 	end
+	return shouldChangeWaypoint
 end
 
 function PurePursuitController:atLastWaypoint()
+	local atLastWaypoint
 	if self:isActive() then
 		-- check for relevantIx for safety, if we are beyond that, our course is done
-		return self.currentIx == #self.vehicle.Waypoints or self.relevantIx == #self.vehicle.Waypoints
+		atLastWaypoint = (self.currentIx > #self.vehicle.Waypoints - 1) or (self.relevantIx == #self.vehicle.Waypoints)
 	else
-		return not self.vehicle.cp.waypointIndex < self.vehicle.cp.numWaypoints
+		atLastWaypoint = not (self.vehicle.cp.waypointIndex < self.vehicle.cp.numWaypoints)
 	end
+	return atLastWaypoint
 end

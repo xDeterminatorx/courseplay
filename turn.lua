@@ -1996,6 +1996,13 @@ function courseplay.createNode( name, x, z, yRotation, rootNode )
   return node
 end
 
+function courseplay.createNodeFromNode( name, otherNode )
+	local x, y, z = getWorldTranslation(otherNode)
+	local _, yRot, _ = getRotation(otherNode)
+	courseplay.createNode(name, x, z, yRot)
+end
+
+
 function courseplay.destroyNode( node )
 	if node then
 		unlink( node )
