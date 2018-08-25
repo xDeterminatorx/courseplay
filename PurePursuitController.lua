@@ -172,12 +172,18 @@ function PurePursuitController:findGoalPoint()
 		local x2, y2, z2 = getWorldTranslation(node2)
 		-- distance between the vehicle position and the end of the relevant segment
 		d1 = courseplay:distance(vx, vz, x2, z2)
+		--print(ix)
 		if d1 > self.lookAheadDistance then
 			d2 = courseplay:distance(x1, z1, vx, vz)
+			--	print(d1,d2)
 			if d2 > self.lookAheadDistance then
-				-- too far from either end of the relavant segment, set the goal to the relevant WP
+				-- too far from either end of the relevant segment, set the goal to the relevant WP
 				self:setNodeToWaypoint(self.goalNode, self.relevantIx)
-				DebugUtil.drawDebugNode(self.goalNode, string.format('relevantix = %d\ntoo\nfar', self.relevantIx))
+				-- and also the current waypoint is now at the relevant WP
+				self:setNodeToWaypointOrBeyond(self.currentWpNode, self.relevantIx)
+				self:setCurrentIx(self.relevantIx)
+				isGoalPointValid = true
+				DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far'))
 				break
 			end
 			-- our goal point is now between ix and ix + 1, let's find it
