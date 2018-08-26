@@ -1034,7 +1034,7 @@ function courseplay:drive(self, dt)
 		if g_server ~= nil then
 			local acceleration = 1;
 			if self.cp.speedBrake then
-				-- We only need to break sligtly.
+				-- We only need to brake slightly.
 				acceleration = (self.movingDirection == 1) == fwd and -0.25 or 0.25; -- Setting accelrator to a negative value will break the tractor.
 			end;
 
@@ -1079,8 +1079,6 @@ function courseplay:drive(self, dt)
 			end
 		end
 	elseif not isWaitingThisLoop then
-		-- SWITCH TO THE NEXT WAYPOINT
-		self.cp.ppc:switchToNextWaypoint()
 		-- reset distance to waypoint
 		self.cp.shortestDistToWp = nil
 		if not self.cp.ppc:atLastWaypoint() then -- = New
@@ -1089,6 +1087,8 @@ function courseplay:drive(self, dt)
 			end
 			if self.cp.mode == 7 and self.cp.modeState == 5 then
 			else
+				-- SWITCH TO THE NEXT WAYPOINT
+				self.cp.ppc:switchToNextWaypoint()
 				courseplay.calculateTightTurnOffset( self )
 				local rev = ""
 				if beforeReverse then
@@ -1105,7 +1105,7 @@ function courseplay:drive(self, dt)
 				-- handling for modes 4 and 6 :(
 			else
 				courseplay:setWaypointIndex(self, 1);
-				self.cp.ppc:initialize()
+				--self.cp.ppc:initialize()
 			end
 			self.cp.isUnloaded = false
 			courseplay:setStopAtEnd(self, false);

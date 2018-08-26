@@ -172,19 +172,26 @@ function PurePursuitController:findGoalPoint()
 		local x2, y2, z2 = getWorldTranslation(node2)
 		-- distance between the vehicle position and the end of the relevant segment
 		d1 = courseplay:distance(vx, vz, x2, z2)
-		--print(ix)
 		if d1 > self.lookAheadDistance then
 			d2 = courseplay:distance(x1, z1, vx, vz)
-			--	print(d1,d2)
 			if d2 > self.lookAheadDistance then
-				-- too far from either end of the relevant segment, set the goal to the relevant WP
-				self:setNodeToWaypoint(self.goalNode, self.relevantIx)
-				-- and also the current waypoint is now at the relevant WP
-				self:setNodeToWaypointOrBeyond(self.currentWpNode, self.relevantIx)
-				self:setCurrentIx(self.relevantIx)
-				isGoalPointValid = true
-				DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far'))
-				break
+				-- too far from either end of the relevant segment
+				if not self.isGoalPointValid then
+					-- If we weren't on track yet (after initialization, on our way to the first/initialized waypoint)
+					-- set the goal to the relevant WP
+					self:setNodeToWaypoint(self.goalNode, self.relevantIx)
+					-- and also the current waypoint is now at the relevant WP
+					self:setNodeToWaypointOrBeyond(self.currentWpNode, self.relevantIx)
+					self:setCurrentIx(self.relevantIx)
+					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far\ninitializing'))
+					break
+				else
+					-- we already were tracking the path but now both points are too far. 
+					-- we can go ahead and find the goal point as usual, as we start approximating
+					-- from the front waypoint and will find the goal point in front of us.
+					-- isGoalPointValid = true
+					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far'))
+				end
 			end
 			-- our goal point is now between ix and ix + 1, let's find it
 			-- distance between current and next waypoint
@@ -302,7 +309,7 @@ function PurePursuitController:shouldChangeWaypoint(distToChange)
 		-- true when the current waypoint calculated by PPC does not match the CP waypoint anymore, or
 		-- true when at the last waypoint (to trigger the last waypoint processing in drive.lua (which was triggerd by
 		-- the distToChange condition before PPC)
-		shouldChangeWaypoint = (self:getCurrentWaypointIx() ~= self.vehicle.cp.waypointIndex) or self:atLastWaypoint()
+		shouldChangeWaypoint = self:getCurrentWaypointIx() ~= self.vehicle.cp.waypointIndex
 	else
 		shouldChangeWaypoint = self.vehicle.cp.distanceToTarget <= distToChange
 	end
@@ -310,12 +317,6 @@ function PurePursuitController:shouldChangeWaypoint(distToChange)
 end
 
 function PurePursuitController:atLastWaypoint()
-	local atLastWaypoint
-	if self:isActive() then
-		-- check for relevantIx for safety, if we are beyond that, our course is done
-		atLastWaypoint = (self.currentIx > #self.vehicle.Waypoints - 1) or (self.relevantIx == #self.vehicle.Waypoints)
-	else
-		atLastWaypoint = not (self.vehicle.cp.waypointIndex < self.vehicle.cp.numWaypoints)
-	end
+	local atLastWaypoint = not (self.vehicle.cp.waypointIndex < self.vehicle.cp.numWaypoints)
 	return atLastWaypoint
 end
