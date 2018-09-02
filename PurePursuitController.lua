@@ -38,6 +38,9 @@ function PurePursuitController:new(vehicle)
 	local newPpc = {}
 	setmetatable( newPpc, self )
 	newPpc.lookAheadDistance = 5
+	-- when transitioning from forward to reverse, this close we have to be to the waypoint where we
+	-- change direction before we switch to the next waypoint
+	newPpc.distToSwitchWhenChangingToReverse = 1
 	newPpc.vehicle = vehicle
 	newPpc.name = nameNum(vehicle)
 	-- node on the current waypoint
@@ -70,7 +73,7 @@ function PurePursuitController:initialize()
 	self.currentIx = self.vehicle.cp.waypointIndex
 	self:setNodeToWaypoint(self.currentWpNode, self.relevantIx)
 	self:setNodeToWaypoint(self.relevantWpNode, self.relevantIx)
-	self:setNodeToWaypoint(self.nextWpNode, self.relevantIx)
+	self:setNodeToWaypoint(self.nextWpNode, self.relevantIx + 1)
 	courseplay.debugVehicle(12, self.vehicle, 'PPC: initialized to waypoint %d', self.relevantIx)
 	self.enabled = true
 end
@@ -120,20 +123,51 @@ function PurePursuitController:update()
 	self:findGoalPoint()
 end
 
+function PurePursuitController:havePassedNextWaypoint()
+	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
+	local dx, _, dz = worldToLocal(self.nextWpNode, vx, vy, vz);
+	local dFromNext = Utils.vector2Length(dx, dz)
+
+	if self.relevantIx < #self.vehicle.Waypoints then
+		if self.relevantIx + 1 <= #self.vehicle.Waypoints and self.vehicle.Waypoints[self.relevantIx + 2].rev then
+			-- next waypoint (wp beyond nextWpNode) is reverse, so this one is also pointing to the reverse direction.
+			-- we have to make sure we drive up to this waypoint close enough before we switch to the next
+			if dz < self.distToSwitchWhenChangingToReverse then
+				courseplay.debugVehicle(12, self.vehicle, 'PPC: before switching to reverse, dz: %.1f', dz)
+				return true
+			end
+		else
+			-- we are not transitioning between forward and reverse
+			local reversed = ''
+			if self.vehicle.Waypoints[self.relevantIx].rev then
+				-- when reversing, we must be _behind_ (dz < 0) of the waypoint to pass it
+				-- as the vehicle's direction node still points to forward
+				dz = -dz
+				reversed = ' (reversed)'
+			end
+			-- have we passed the next waypoint? Must get closer than lookahead distance to switch to make sure we
+			-- actually drive back to the waypoint even if we are already ahead of it
+			if dz >= 0 and dFromNext < self.lookAheadDistance then
+				courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint passed, dz: %.1f %s', dz, reversed)
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- Finds the relevant segment.
 -- Sets the vehicle's projected position on the path.
 function PurePursuitController:findRelevantSegment()
 	-- vehicle position
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
 	local crossTrackError, _, dzFromRelevant = worldToLocal(self.relevantWpNode, vx, vy, vz);
-	local dx, _, dz = worldToLocal(self.nextWpNode, vx, vy, vz);
-	local dFromNext = Utils.vector2Length(dx, dz)
 	-- projected vehicle position/rotation
 	local px, py, pz = localToWorld(self.relevantWpNode, 0, 0, dzFromRelevant)
 	local _, yRot, _ = getRotation(self.nextWpNode)
 	-- have we passed the next waypoint? Must get closer than lookahead distance to switch to make sure we
 	-- actually drive back to the waypoint even if we are already ahead of it
-	if dz >= 0 and dFromNext < self.lookAheadDistance and self.relevantIx < #self.vehicle.Waypoints then
+	if self:havePassedNextWaypoint() then
 		self.relevantIx = self.relevantIx + 1
 		courseplay.debugVehicle(12, self.vehicle, 'PPC: relevant waypoint: %d, crosstrack error: %.1f', self.relevantIx, crossTrackError)
 		self:setNodeToWaypoint(self.relevantWpNode, self.relevantIx)
@@ -143,7 +177,7 @@ function PurePursuitController:findRelevantSegment()
 	setRotation(self.projectedPosNode, 0, yRot, 0)
 	if courseplay.debugChannels[12] then
 		drawDebugLine(px, py + 3, pz, 1, 1, 0, px, py + 1, pz, 1, 1, 0);
-		DebugUtil.drawDebugNode(self.relevantWpNode, string.format('ix = %d\nd = %.1f\nrelevant\nnode', self.relevantIx, dz))
+		DebugUtil.drawDebugNode(self.relevantWpNode, string.format('ix = %d\nnrelevant\nnode', self.relevantIx, dz))
 		DebugUtil.drawDebugNode(self.projectedPosNode, 'projected\nvehicle\nposition')
 	end
 end
@@ -174,6 +208,7 @@ function PurePursuitController:findGoalPoint()
 		d1 = courseplay:distance(vx, vz, x2, z2)
 		if d1 > self.lookAheadDistance then
 			d2 = courseplay:distance(x1, z1, vx, vz)
+			courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.1f dToNext: %.1f', ix, d2, d1)
 			if d2 > self.lookAheadDistance then
 				-- too far from either end of the relevant segment
 				if not self.isGoalPointValid then
@@ -183,14 +218,14 @@ function PurePursuitController:findGoalPoint()
 					-- and also the current waypoint is now at the relevant WP
 					self:setNodeToWaypointOrBeyond(self.currentWpNode, self.relevantIx)
 					self:setCurrentIx(self.relevantIx)
-					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far\ninitializing'))
+					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\ntoo far\ninitializing'))
 					break
 				else
 					-- we already were tracking the path but now both points are too far. 
 					-- we can go ahead and find the goal point as usual, as we start approximating
 					-- from the front waypoint and will find the goal point in front of us.
 					-- isGoalPointValid = true
-					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\n\ntoo far'))
+					DebugUtil.drawDebugNode(self.goalNode, string.format('\n\n\ntoo far'))
 				end
 			end
 			-- our goal point is now between ix and ix + 1, let's find it
@@ -206,6 +241,7 @@ function PurePursuitController:findGoalPoint()
 			while currentRange > epsilon do
 				local gx, gy, gz = localToWorld(node1, 0, 0, currentDz)
 				d1 = courseplay:distance(vx, vz, gx, gz)
+				--courseplay.debugVehicle(12, self.vehicle, 'range: %.1f d1: %.1f', currentRange, d1)
 				if d1 < self.lookAheadDistance + epsilon and d1 > self.lookAheadDistance - epsilon then
 					-- we are close enough to the goal point.
 					gy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, gx, 0, gz)
