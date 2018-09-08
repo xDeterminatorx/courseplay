@@ -67,6 +67,21 @@ end
 
 -- initialize controller before driving
 function PurePursuitController:initialize()
+--[[	self.segments = {}
+	local nSegments = 1
+
+	for i = self.vehicle.cp.waypointIndex, #self.vehicle.Waypoints do
+		if self:switchingDirectionAt(i) and self.segments[nSegments] then
+			-- start a new segment here (unless this is the first wp)
+			nSegments = nSegments + 1
+		end
+		if not self.segments[nSegments] then
+			self.segments[nSegments] = {}
+		end
+		table.insert(self.segments[nSegments], Waypoint:new(self.vehicle.Waypoints[i], i))
+	end
+	self.currentSegment = 1
+	--]]
 	-- we rely on the code in start_stop.lua to select the first waypoint
 	-- relevantIx always points to the point where the relevant path segment starts
 	self.relevantIx = self.vehicle.cp.waypointIndex
@@ -96,19 +111,32 @@ end
 
 -- Allow ix > #Waypoints, in that case move the node lookAheadDistance beyond the last WP
 function PurePursuitController:setNodeToWaypointOrBeyond(node, ix)
-	if ix <= #self.vehicle.Waypoints then
-		self:setNodeToWaypoint(node, ix)
-	else
+	if ix > #self.vehicle.Waypoints  then
 		-- beyond the last, so put it on the last for now
 		-- but use the direction of the one before the last as the last one's is bogus
 		self:setNodeToWaypoint(node, #self.vehicle.Waypoints - 1)
 		local _, yRot, _ = getRotation(node)
-		self:setNodeToWaypoint(node, #self.vehicle.Waypoints - 1)
+		self:setNodeToWaypoint(node, #self.vehicle.Waypoints)
 		setRotation(node, 0, yRot, 0)
 		-- And now, move ahead a bit.
 		local nx, ny, nz = localToWorld(node, 0, 0, self.lookAheadDistance)
 		setTranslation(node, nx, ny, nz)
 		courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving node beyond last')
+	elseif self:switchingDirectionAt(ix) then
+		-- just like at the last waypoint, if there's a direction switch, we want to drive up
+		-- to the waypoint so we move the goal point beyond it
+		-- the angle of ix is already pointing to
+		self:setNodeToWaypoint(node, ix - 1)
+		local _, yRot, _ = getRotation(node)
+		self:setNodeToWaypoint(node, ix)
+		setRotation(node, 0, yRot, 0)
+		-- And now, move ahead a bit.
+		local nx, ny, nz = localToWorld(node, 0, 0, self.lookAheadDistance)
+		setTranslation(node, nx, ny, nz)
+		courseplay.debugVehicle(12, self.vehicle, 'PPC: direction switch waypoint reached, moving node beyond it')
+
+	else
+		self:setNodeToWaypoint(node, ix)
 	end
 end
 
@@ -123,13 +151,19 @@ function PurePursuitController:update()
 	self:findGoalPoint()
 end
 
+function PurePursuitController:switchingDirectionAt(ix)
+	return (not self.vehicle.Waypoints[ix].rev) and self.vehicle.Waypoints[math.min(ix + 1, #self.vehicle.Waypoints)].rev
+end
+
 function PurePursuitController:havePassedNextWaypoint()
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
 	local dx, _, dz = worldToLocal(self.nextWpNode, vx, vy, vz);
 	local dFromNext = Utils.vector2Length(dx, dz)
 
 	if self.relevantIx < #self.vehicle.Waypoints then
-		if self.relevantIx + 1 <= #self.vehicle.Waypoints and self.vehicle.Waypoints[self.relevantIx + 2].rev then
+		if self.relevantIx + 1 <= #self.vehicle.Waypoints and
+			self:switchingDirectionAt(self.relevantIx + 1) then
+			-- switching from forward to reverse
 			-- next waypoint (wp beyond nextWpNode) is reverse, so this one is also pointing to the reverse direction.
 			-- we have to make sure we drive up to this waypoint close enough before we switch to the next
 			if dz < self.distToSwitchWhenChangingToReverse then
@@ -191,22 +225,27 @@ function PurePursuitController:findGoalPoint()
 
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode);
 
-	-- create a node at the relevant wp node. We'll move this up on the path until we reach the segment
+	-- create helper nodes at the relevant and the next wp. We'll move these up on the path until we reach the segment
 	-- in lookAheadDistance
 	local node1 = courseplay.createNode( self.name .. 'node1', 0, 0, 0)
 	local node2 = courseplay.createNode( self.name .. 'node2', 0, 0, 0)
 
 	local isGoalPointValid = false
 
+	-- starting at the relevant segment walk up the path to find the segment on
+	-- which the goal point lies. This is the segment intersected by the circle with lookAheadDistance radius
+	-- around the vehicle.
 	local ix = self.relevantIx
 	while ix <= #self.vehicle.Waypoints do
 		self:setNodeToWaypoint(node1, ix)
 		self:setNodeToWaypointOrBeyond(node2, ix + 1)
 		local x1, y1, z1 = getWorldTranslation(node1)
 		local x2, y2, z2 = getWorldTranslation(node2)
-		-- distance between the vehicle position and the end of the relevant segment
+		-- distance between the vehicle position and the end of the segment
 		d1 = courseplay:distance(vx, vz, x2, z2)
 		if d1 > self.lookAheadDistance then
+			-- far end of this segment is farther than lookAheadDistance so the goal point must be on
+			-- this segment
 			d2 = courseplay:distance(x1, z1, vx, vz)
 			courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.1f dToNext: %.1f', ix, d2, d1)
 			if d2 > self.lookAheadDistance then
@@ -238,6 +277,8 @@ function PurePursuitController:findGoalPoint()
 
 			-- successive approximation of the intersection between this path segment and the
 			-- lookAheadDistance radius circle around the vehicle. That intersection point will be our goal point
+			-- starting from the far end makes sure we find the correct point even in the case when the
+			-- circle around the vehicle intersects with this section twice.
 			while currentRange > epsilon do
 				local gx, gy, gz = localToWorld(node1, 0, 0, currentDz)
 				d1 = courseplay:distance(vx, vz, gx, gz)
