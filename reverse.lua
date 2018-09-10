@@ -37,7 +37,7 @@ function courseplay:goReverse(vehicle,lx,lz,mode2)
 			courseplay:doTriggerRaycasts(vehicle, 'tipTrigger', 'rev', false, tx, ty, tz, nx, ny, nz);
 			--  End:  Fixes issue #525
 		end
-		return -lx,-lz,fwd;
+		return -lx,-lz,fwd;	
 	end;
 
 	local node = workTool.cp.realTurningNode;
@@ -185,6 +185,7 @@ function courseplay:goReverse(vehicle,lx,lz,mode2)
 				local _,_,z = worldToLocal(node, tcx,yTipper,tcz);
 				if z < 0 then
 					courseplay:setWaypointIndex(vehicle, i - 1);
+					courseplay.debugVehicle(12, vehicle, 'Reverse: setting waypoint to %d', i - 1)
 					break;
 				end;
 			end;
