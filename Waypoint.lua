@@ -32,3 +32,28 @@ function Waypoint:new(cpWp, cpIndex)
 	newWp.cpIndex = cpIndex
 	return newWp
 end
+
+function Waypoint:getPosition()
+	local y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, self.x, 0, self.z)
+	return self.x, y, self.z
+end
+
+Node = {}
+Node.__index = Node
+
+function Node:new(name, x, z, yRotation, rootNode ) 
+	local newNode = {}
+	newNode.node = courseplay.createNode(name, x, z, yRotation, rootNode)
+	return newNode
+end
+
+WaypointNode = {}
+WaypointNode.__index = WaypointNode
+
+function WaypointNode(name, cpWp, cpIndex) 
+	local newWaypointNode = {}
+	newWaypointNode.waypoint = Waypoint:new(cpWp, cpIndex)
+	newWaypointNode.node = Node:new(name, newWaypointNode.waypoint.x, newWaypointNode.waypoint.z)
+	return newWaypointNode
+	
+end
