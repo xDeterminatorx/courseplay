@@ -23,14 +23,18 @@ Waypoint.__index = Waypoint
 function Waypoint:new(cpWp, cpIndex)
 	local newWp = {}
 	setmetatable( newWp, self )
+	newWp:set(cpWp, cpIndex)
+	return newWp
+end
+
+function Waypoint:set(cpWp, cpIndex)
 	-- we initialize explicitly, no table copy as we want to have
 	-- full control over what is used in this object
-	newWp.x = cpWp.cx
-	newWp.z = cpWp.cz
-	newWp.angle = cpWp.angle
-	newWp.rev = cpWp.rev
-	newWp.cpIndex = cpIndex
-	return newWp
+	self.x = cpWp.cx or 0
+	self.z = cpWp.cz or 0
+	self.angle = cpWp.angle or 0
+	self.rev = cpWp.rev or false
+	self.cpIndex = cpIndex or 0
 end
 
 function Waypoint:getPosition()
@@ -38,22 +42,79 @@ function Waypoint:getPosition()
 	return self.x, y, self.z
 end
 
-Node = {}
-Node.__index = Node
-
-function Node:new(name, x, z, yRotation, rootNode ) 
-	local newNode = {}
-	newNode.node = courseplay.createNode(name, x, z, yRotation, rootNode)
-	return newNode
-end
-
+-- a node related to a waypoint
 WaypointNode = {}
+WaypointNode.MODE_NORMAL = 1
+WaypointNode.MODE_LAST_WP = 2
+WaypointNode.MODE_SWITCH_DIRECTION = 3
 WaypointNode.__index = WaypointNode
 
-function WaypointNode(name, cpWp, cpIndex) 
+function WaypointNode:new(name, vehicle)
 	local newWaypointNode = {}
-	newWaypointNode.waypoint = Waypoint:new(cpWp, cpIndex)
-	newWaypointNode.node = Node:new(name, newWaypointNode.waypoint.x, newWaypointNode.waypoint.z)
+	setmetatable( newWaypointNode, self )
+	newWaypointNode.vehicle = vehicle
+	newWaypointNode.node = courseplay.createNode(name, 0, 0)
+	newWaypointNode:setToWaypoint(1)
 	return newWaypointNode
-	
 end
+
+function WaypointNode:destroy()
+	courseplay.destroyNode(self.node)
+end
+
+function WaypointNode:getWaypointPosition(ix)
+	local x, z = self.vehicle.Waypoints[ix].cx, self.vehicle.Waypoints[ix].cz
+	local y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, x, 0, z)
+	return x, y, z
+end
+
+function WaypointNode:setToWaypoint(ix)
+	if ix ~= self.ix then
+		courseplay.debugVehicle(12, self.vehicle, 'PPC: %s waypoint index %d', getName(self.node), ix)
+	end
+	self.ix = math.min(ix, #self.vehicle.Waypoints)
+	local x, y, z = self:getWaypointPosition(self.ix)
+	setTranslation(self.node, x, y, z)
+	setRotation(self.node, 0, math.rad(self.vehicle.Waypoints[self.ix].angle), 0)
+end
+
+-- Allow ix > #Waypoints, in that case move the node lookAheadDistance beyond the last WP
+function WaypointNode:setToWaypointOrBeyond(ix, distance)
+	if ix > #self.vehicle.Waypoints then
+		-- beyond the last, so put it on the last for now
+		-- but use the direction of the one before the last as the last one's is bogus
+		self:setToWaypoint(#self.vehicle.Waypoints - 1)
+		local _, yRot, _ = getRotation(self.node)
+		self:setToWaypoint(#self.vehicle.Waypoints)
+		setRotation(self.node, 0, yRot, 0)
+		-- And now, move ahead a bit.
+		local nx, ny, nz = localToWorld(self.node, 0, 0, distance)
+		setTranslation(self.node, nx, ny, nz)
+		if self.mode and self.mode ~= WaypointNode.MODE_LAST_WP then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving node beyond last: %s', getName(self.node))
+		end
+		self.mode = WaypointNode.MODE_LAST_WP
+	elseif self:switchingDirectionAt(ix) then
+		-- just like at the last waypoint, if there's a direction switch, we want to drive up
+		-- to the waypoint so we move the goal point beyond it
+		-- the angle of ix is already pointing to
+		self:setToWaypoint(ix)
+		-- turn node back as this is the one before the first reverse, already pointing to the reverse direction.
+		local _, yRot, _ = getRotation(self.node)
+		setRotation(self.node, 0, yRot + math.pi, 0)
+		-- And now, move ahead a bit.
+		local nx, ny, nz = localToWorld(self.node, 0, 0, distance)
+		setTranslation(self.node, nx, ny, nz)
+		if self.mode and self.mode ~= WaypointNode.MODE_SWITCH_DIRECTION then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: direction switch waypoint reached, moving node beyond it: %s', getName(self.node))
+		end
+		self.waypointMode = WaypointNode.MODE_SWITCH_DIRECTION
+	else
+		if self.mode and self.mode ~= WaypointNode.MODE_NORMAL then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: normal waypoint (not last, no direction change: %s', getName(self.node))
+		end
+		self.waypointMode = WaypointNode.MODE_NORMAL
+		self:setToWaypoint(ix)
+	end
+end
+
