@@ -19,6 +19,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Waypoint = {}
 Waypoint.__index = Waypoint
 
+function Waypoint.switchingDirectionAt(vehicle, ix)
+	return (not vehicle.Waypoints[ix].rev) and vehicle.Waypoints[math.min(ix + 1, #vehicle.Waypoints)].rev
+end
+
 -- constructor from the legacy Courseplay waypoint
 function Waypoint:new(cpWp, cpIndex)
 	local newWp = {}
@@ -49,12 +53,12 @@ WaypointNode.MODE_LAST_WP = 2
 WaypointNode.MODE_SWITCH_DIRECTION = 3
 WaypointNode.__index = WaypointNode
 
-function WaypointNode:new(name, vehicle)
+function WaypointNode:new(name, vehicle, logChanges)
 	local newWaypointNode = {}
 	setmetatable( newWaypointNode, self )
 	newWaypointNode.vehicle = vehicle
-	newWaypointNode.node = courseplay.createNode(name, 0, 0)
-	newWaypointNode:setToWaypoint(1)
+	newWaypointNode.logChanges = logChanges
+	newWaypointNode.node = courseplay.createNode(name, 0, 0, 0)
 	return newWaypointNode
 end
 
@@ -69,7 +73,7 @@ function WaypointNode:getWaypointPosition(ix)
 end
 
 function WaypointNode:setToWaypoint(ix)
-	if ix ~= self.ix then
+	if ix ~= self.ix and self.logChanges then
 		courseplay.debugVehicle(12, self.vehicle, 'PPC: %s waypoint index %d', getName(self.node), ix)
 	end
 	self.ix = math.min(ix, #self.vehicle.Waypoints)
@@ -77,6 +81,7 @@ function WaypointNode:setToWaypoint(ix)
 	setTranslation(self.node, x, y, z)
 	setRotation(self.node, 0, math.rad(self.vehicle.Waypoints[self.ix].angle), 0)
 end
+
 
 -- Allow ix > #Waypoints, in that case move the node lookAheadDistance beyond the last WP
 function WaypointNode:setToWaypointOrBeyond(ix, distance)
@@ -94,7 +99,7 @@ function WaypointNode:setToWaypointOrBeyond(ix, distance)
 			courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving node beyond last: %s', getName(self.node))
 		end
 		self.mode = WaypointNode.MODE_LAST_WP
-	elseif self:switchingDirectionAt(ix) then
+	elseif Waypoint.switchingDirectionAt(self.vehicle, ix) then
 		-- just like at the last waypoint, if there's a direction switch, we want to drive up
 		-- to the waypoint so we move the goal point beyond it
 		-- the angle of ix is already pointing to

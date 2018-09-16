@@ -89,6 +89,7 @@ local function initialize()
 		'traffic',
 		'vehicles',
 		'PurePursuitController',
+		'Waypoint',
     'course-generator/courseGenerator',
     'course-generator/CourseGeneratorScreen',
 	'course-generator/CoursePlot',

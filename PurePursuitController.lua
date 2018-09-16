@@ -44,13 +44,13 @@ function PurePursuitController:new(vehicle)
 	newPpc.vehicle = vehicle
 	newPpc.name = nameNum(vehicle)
 	-- node on the current waypoint
-	newPpc.currentWpNode = WaypointNode:new( newPpc.name .. '-currentWpNode', vehicle)
+	newPpc.currentWpNode = WaypointNode:new( newPpc.name .. '-currentWpNode', vehicle, true)
 	-- waypoint at the start of the relevant segment
-	newPpc.relevantWpNode = WaypointNode:new( newPpc.name .. '-relevantWpNode', vehicle)
+	newPpc.relevantWpNode = WaypointNode:new( newPpc.name .. '-relevantWpNode', vehicle, true)
 	-- waypoint at the end of the relevant segment
-	newPpc.nextWpNode = WaypointNode:new( newPpc.name .. '-nextWpNode', vehicle)
+	newPpc.nextWpNode = WaypointNode:new( newPpc.name .. '-nextWpNode', vehicle, false)
 	-- the current goal node
-	newPpc.goalWpNode = WaypointNode:new( newPpc.name .. '-goalWpNode', vehicle)
+	newPpc.goalWpNode = WaypointNode:new( newPpc.name .. '-goalWpNode', vehicle, false)
 	-- vehicle position projected on the path, not used for anything other than debug display
 	newPpc.projectedPosNode = courseplay.createNode( newPpc.name .. '-projectedPosNode', 0, 0, 0)
 	return newPpc
@@ -108,10 +108,6 @@ function PurePursuitController:update()
 	self:findGoalPoint()
 end
 
-function PurePursuitController:switchingDirectionAt(ix)
-	return (not self.vehicle.Waypoints[ix].rev) and self.vehicle.Waypoints[math.min(ix + 1, #self.vehicle.Waypoints)].rev
-end
-
 function PurePursuitController:havePassedNextWaypoint()
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
 	local dx, _, dz = worldToLocal(self.nextWpNode.node, vx, vy, vz);
@@ -119,7 +115,7 @@ function PurePursuitController:havePassedNextWaypoint()
 
 	if self.relevantWpNode.ix < #self.vehicle.Waypoints then
 		if self.relevantWpNode.ix + 1 <= #self.vehicle.Waypoints and
-			self:switchingDirectionAt(self.relevantWpNode.ix + 1) then
+			Waypoint.switchingDirectionAt(self.vehicle, self.relevantWpNode.ix + 1) then
 			-- switching from forward to reverse
 			-- next waypoint (wp beyond nextWpNode) is reverse, so this one is also pointing to the reverse direction.
 			-- we have to make sure we drive up to this waypoint close enough before we switch to the next
@@ -183,8 +179,8 @@ function PurePursuitController:findGoalPoint()
 
 	-- create helper nodes at the relevant and the next wp. We'll move these up on the path until we reach the segment
 	-- in lookAheadDistance
-	local node1 = WaypointNode:new( self.name .. '-node1', self.vehicle)
-	local node2 = WaypointNode:new( self.name .. '-node2', self.vehicle)
+	local node1 = WaypointNode:new( self.name .. '-node1', self.vehicle, false)
+	local node2 = WaypointNode:new( self.name .. '-node2', self.vehicle, false)
 
 	local isGoalPointValid = false
 
@@ -203,7 +199,7 @@ function PurePursuitController:findGoalPoint()
 			-- far end of this segment is farther than lookAheadDistance so the goal point must be on
 			-- this segment
 			d2 = courseplay:distance(x1, z1, vx, vz)
-			--courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.1f dToNext: %.1f', ix, d2, d1)
+			courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.1f dToNext: %.1f', ix, d2, d1)
 			if d2 > self.lookAheadDistance then
 				-- too far from either end of the relevant segment
 				if not self.isGoalPointValid then
@@ -236,13 +232,13 @@ function PurePursuitController:findGoalPoint()
 			while currentRange > epsilon do
 				-- we could go forward from node1 or back from node2. We do node2 so it works fine 
 				-- in MODE_SWITCH_DIRECTION when node1 does not point to node2 exactly
-				local gx, gy, gz = localToWorld(node2, 0, 0, - (dToNext - currentDz))
+				local gx, gy, gz = localToWorld(node2.node, 0, 0, - (dToNext - currentDz))
 				d1 = courseplay:distance(vx, vz, gx, gz)
-				--courseplay.debugVehicle(12, self.vehicle, 'range: %.1f d1: %.1f', currentRange, d1)
+				courseplay.debugVehicle(12, self.vehicle, 'range: %.2f d1: %.1f', currentRange, d1)
 				if d1 < self.lookAheadDistance + epsilon and d1 > self.lookAheadDistance - epsilon then
 					-- we are close enough to the goal point.
 					gy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, gx, 0, gz)
-					setTranslation(self.goalWpNode, gx, gy, gz)
+					setTranslation(self.goalWpNode.node, gx, gy, gz)
 					isGoalPointValid = true
 					tx, ty, tz = localToWorld(self.goalWpNode.node, 0, 0, 0)
 					if courseplay.debugChannels[12] then
@@ -264,8 +260,8 @@ function PurePursuitController:findGoalPoint()
 		end
 		ix = ix + 1
 	end
-	courseplay.destroyNode(node1)
-	courseplay.destroyNode(node2)
+	courseplay.destroyNode(node1.node)
+	courseplay.destroyNode(node2.node)
 	self:setGoalPointValid(isGoalPointValid)
 	return tx, ty, tz
 end
