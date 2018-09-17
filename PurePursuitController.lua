@@ -171,7 +171,6 @@ end
 -- Now, from the relevant section forward we search for the goal point, which is the one
 -- lying lookAheadDistance in front of us on the path
 function PurePursuitController:findGoalPoint()
-	local epsilon = 0.01
 	local d1, d2
 	local tx, ty, tz
 
@@ -188,18 +187,21 @@ function PurePursuitController:findGoalPoint()
 	-- which the goal point lies. This is the segment intersected by the circle with lookAheadDistance radius
 	-- around the vehicle.
 	local ix = self.relevantWpNode.ix
+	courseplay.debugVehicle(12, self.vehicle, 'relevant Ix: %d', self.relevantWpNode.ix) -- -----------------------
 	while ix <= #self.vehicle.Waypoints do
+		courseplay.debugVehicle(12, self.vehicle, 'ix: %d', ix) -- -----------------------
 		node1:setToWaypoint(ix)
 		node2:setToWaypointOrBeyond(ix + 1, self.lookAheadDistance)
 		local x1, y1, z1 = getWorldTranslation(node1.node)
 		local x2, y2, z2 = getWorldTranslation(node2.node)
 		-- distance between the vehicle position and the end of the segment
 		d1 = courseplay:distance(vx, vz, x2, z2)
+		courseplay.debugVehicle(12, self.vehicle, 'ix: %d %.4f', ix, d1) -- -----------------------
 		if d1 > self.lookAheadDistance then
 			-- far end of this segment is farther than lookAheadDistance so the goal point must be on
 			-- this segment
 			d2 = courseplay:distance(x1, z1, vx, vz)
-			courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.1f dToNext: %.1f', ix, d2, d1)
+			courseplay.debugVehicle(12, self.vehicle, 'ix: %d dFromPrev: %.4f dToNext: %.4f', ix, d2, d1) -- -----------------------
 			if d2 > self.lookAheadDistance then
 				-- too far from either end of the relevant segment
 				if not self.isGoalPointValid then
@@ -225,16 +227,22 @@ function PurePursuitController:findGoalPoint()
 			-- this is the current waypoint for the rest of Courseplay code, the waypoint we are driving to
 			self.currentWpNode:setToWaypointOrBeyond(ix + 1, self.lookAheadDistance)
 
+			
 			-- successive approximation of the intersection between this path segment and the
 			-- lookAheadDistance radius circle around the vehicle. That intersection point will be our goal point
+
 			-- starting from the far end makes sure we find the correct point even in the case when the
 			-- circle around the vehicle intersects with this section twice.
-			while currentRange > epsilon do
+			
+			local bits = 8  -- successive approximator (ADC) bits
+			local step = 0  -- current step
+			local epsilon = self.lookAheadDistance / (math.pow(2, bits - 1)) -- accuracy of our ADC
+			while step < bits do
 				-- we could go forward from node1 or back from node2. We do node2 so it works fine 
 				-- in MODE_SWITCH_DIRECTION when node1 does not point to node2 exactly
 				local gx, gy, gz = localToWorld(node2.node, 0, 0, - (dToNext - currentDz))
 				d1 = courseplay:distance(vx, vz, gx, gz)
-				courseplay.debugVehicle(12, self.vehicle, 'range: %.2f d1: %.1f', currentRange, d1)
+				courseplay.debugVehicle(12, self.vehicle, 'range: %.4f d1: %.4f, dz: %.4f', currentRange, d1, currentDz) -- -----------------------------
 				if d1 < self.lookAheadDistance + epsilon and d1 > self.lookAheadDistance - epsilon then
 					-- we are close enough to the goal point.
 					gy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, gx, 0, gz)
@@ -253,6 +261,7 @@ function PurePursuitController:findGoalPoint()
 				else
 					maxDz = currentDz
 				end
+				step = step + 1
 				currentRange = currentRange / 2
 				currentDz = minDz + currentRange
 			end
