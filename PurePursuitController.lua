@@ -108,38 +108,37 @@ function PurePursuitController:update()
 	self:findGoalPoint()
 end
 
-function PurePursuitController:havePassedNextWaypoint()
+function PurePursuitController:havePassedNextWaypoint(wpNode)
 	local vx, vy, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
-	local dx, _, dz = worldToLocal(self.nextWpNode.node, vx, vy, vz);
+	local dx, _, dz = worldToLocal(wpNode.node, vx, vy, vz);
 	local dFromNext = Utils.vector2Length(dx, dz)
 
-	if self.relevantWpNode.ix < #self.vehicle.Waypoints then
-		if self.relevantWpNode.ix + 1 <= #self.vehicle.Waypoints and
-			Waypoint.switchingDirectionAt(self.vehicle, self.relevantWpNode.ix + 1) then
-			-- switching from forward to reverse
-			-- next waypoint (wp beyond nextWpNode) is reverse, so this one is also pointing to the reverse direction.
-			-- we have to make sure we drive up to this waypoint close enough before we switch to the next
-			if dz < self.distToSwitchWhenChangingToReverse then
-				courseplay.debugVehicle(12, self.vehicle, 'PPC: before switching to reverse, dz: %.1f', dz)
-				return true
-			end
-		else
-			-- we are not transitioning between forward and reverse
-			local reversed = ''
-			if self.vehicle.Waypoints[self.relevantWpNode.ix].rev then
-				-- when reversing, we must be _behind_ (dz < 0) of the waypoint to pass it
-				-- as the vehicle's direction node still points to forward
-				dz = -dz
-				reversed = ' (reversed)'
-			end
-			-- have we passed the next waypoint? Must get closer than lookahead distance to switch to make sure we
-			-- actually drive back to the waypoint even if we are already ahead of it
-			if dz >= 0 and dFromNext < self.lookAheadDistance then
-				courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint passed, dz: %.1f %s', dz, reversed)
-				return true
-			end
+	if Waypoint.switchingToReverseAt(self.vehicle, wpNode.ix) or
+		Waypoint.switchingToForwardAt(self.vehicle, wpNode.ix) then
+		-- switching direction at this waypoint, so this is pointing into the opposite direction.
+		-- we have to make sure we drive up to this waypoint close enough before we switch to the next
+		-- so wait until dz < 0, that is, we are behind the waypoint 
+		if dz < 0 then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d passed, before switching direction, dz: %.1f', wpNode.ix, dz)
+			return true
+		end
+	else
+		-- we are not transitioning between forward and reverse
+		local reversed = ''
+		if self.vehicle.Waypoints[wpNode.ix].rev then
+			-- when reversing, we must be _behind_ (dz < 0) the waypoint to pass it
+			-- as the vehicle's direction node still points to forward
+			dz = -dz
+			reversed = ' (reversed)'
+		end
+		-- have we passed the next waypoint? Must get closer than lookahead distance to switch to make sure we
+		-- actually drive back to the waypoint even if we are already ahead of it
+		if dz >= 0 and dFromNext < self.lookAheadDistance then
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d passed, dz: %.1f %s', wpNode.ix, dz, reversed)
+			return true
 		end
 	end
+	
 	return false
 end
 
@@ -154,9 +153,9 @@ function PurePursuitController:findRelevantSegment()
 	local _, yRot, _ = getRotation(self.nextWpNode.node)
 	-- have we passed the next waypoint? Must get closer than lookahead distance to switch to make sure we
 	-- actually drive back to the waypoint even if we are already ahead of it
-	if self:havePassedNextWaypoint() then
+	if self:havePassedNextWaypoint(self.nextWpNode) then
 		self.relevantWpNode:setToWaypoint(self.relevantWpNode.ix + 1)
-		self.nextWpNode:setToWaypointOrBeyond(self.relevantWpNode.ix + 1, self.lookAheadDistance)
+		self.nextWpNode:setToWaypoint(self.relevantWpNode.ix + 1, self.lookAheadDistance)
 		courseplay.debugVehicle(12, self.vehicle, 'PPC: relevant waypoint: %d, crosstrack error: %.1f', self.relevantWpNode.ix, crossTrackError)
 	end
 	setTranslation(self.projectedPosNode, px, py, pz)
@@ -238,11 +237,10 @@ function PurePursuitController:findGoalPoint()
 			local step = 0  -- current step
 			local epsilon = self.lookAheadDistance / (math.pow(2, bits - 1)) -- accuracy of our ADC
 			while step < bits do
-				-- we could go forward from node1 or back from node2. We do node2 so it works fine 
-				-- in MODE_SWITCH_DIRECTION when node1 does not point to node2 exactly
-				local gx, gy, gz = localToWorld(node2.node, 0, 0, - (dToNext - currentDz))
+				-- pint in currentDz distance from node1 on the section between node1 and node2
+				local gx, gy, gz = localToWorld(node1.node, 0, 0, currentDz)
 				d1 = courseplay:distance(vx, vz, gx, gz)
-				courseplay.debugVehicle(12, self.vehicle, 'range: %.4f d1: %.4f, dz: %.4f', currentRange, d1, currentDz) -- -----------------------------
+				--courseplay.debugVehicle(12, self.vehicle, 'range: %.4f d1: %.4f, dz: %.4f', currentRange, d1, currentDz) -- -----------------------------
 				if d1 < self.lookAheadDistance + epsilon and d1 > self.lookAheadDistance - epsilon then
 					-- we are close enough to the goal point.
 					gy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, gx, 0, gz)

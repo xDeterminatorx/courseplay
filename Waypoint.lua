@@ -19,8 +19,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Waypoint = {}
 Waypoint.__index = Waypoint
 
-function Waypoint.switchingDirectionAt(vehicle, ix)
-	return (not vehicle.Waypoints[ix].rev) and vehicle.Waypoints[math.min(ix + 1, #vehicle.Waypoints)].rev
+
+function Waypoint.switchingToReverseAt(vehicle, ix)
+	return (not vehicle.Waypoints[ix].rev) and vehicle.Waypoints[math.min(ix + 1, #vehicle.Waypoints)].rev 		
+end
+
+function Waypoint.switchingToForwardAt(vehicle, ix)
+	return (vehicle.Waypoints[ix].rev) and not vehicle.Waypoints[math.min(ix + 1, #vehicle.Waypoints)].rev		
 end
 
 -- constructor from the legacy Courseplay waypoint
@@ -51,6 +56,8 @@ WaypointNode = {}
 WaypointNode.MODE_NORMAL = 1
 WaypointNode.MODE_LAST_WP = 2
 WaypointNode.MODE_SWITCH_DIRECTION = 3
+WaypointNode.MODE_SWITCH_TO_FORWARD = 4
+
 WaypointNode.__index = WaypointNode
 
 function WaypointNode:new(name, vehicle, logChanges)
@@ -99,10 +106,10 @@ function WaypointNode:setToWaypointOrBeyond(ix, distance)
 			courseplay.debugVehicle(12, self.vehicle, 'PPC: last waypoint reached, moving node beyond last: %s', getName(self.node))
 		end
 		self.mode = WaypointNode.MODE_LAST_WP
-	elseif Waypoint.switchingDirectionAt(self.vehicle, ix) then
+	elseif Waypoint.switchingToReverseAt(self.vehicle, ix) or Waypoint.switchingToForwardAt(self.vehicle, ix) then
 		-- just like at the last waypoint, if there's a direction switch, we want to drive up
 		-- to the waypoint so we move the goal point beyond it
-		-- the angle of ix is already pointing to
+		-- the angle of ix is already pointing to reverse here
 		self:setToWaypoint(ix)
 		-- turn node back as this is the one before the first reverse, already pointing to the reverse direction.
 		local _, yRot, _ = getRotation(self.node)
@@ -111,14 +118,14 @@ function WaypointNode:setToWaypointOrBeyond(ix, distance)
 		local nx, ny, nz = localToWorld(self.node, 0, 0, distance)
 		setTranslation(self.node, nx, ny, nz)
 		if self.mode and self.mode ~= WaypointNode.MODE_SWITCH_DIRECTION then
-			courseplay.debugVehicle(12, self.vehicle, 'PPC: direction switch waypoint reached, moving node beyond it: %s', getName(self.node))
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: switching direction at %d, moving node beyond it: %s', ix, getName(self.node))
 		end
-		self.waypointMode = WaypointNode.MODE_SWITCH_DIRECTION
+		self.mode = WaypointNode.MODE_SWITCH_DIRECTION
 	else
 		if self.mode and self.mode ~= WaypointNode.MODE_NORMAL then
 			courseplay.debugVehicle(12, self.vehicle, 'PPC: normal waypoint (not last, no direction change: %s', getName(self.node))
 		end
-		self.waypointMode = WaypointNode.MODE_NORMAL
+		self.mode = WaypointNode.MODE_NORMAL
 		self:setToWaypoint(ix)
 	end
 end
