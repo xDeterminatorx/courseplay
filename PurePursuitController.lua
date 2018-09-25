@@ -48,7 +48,7 @@ function PurePursuitController:new(vehicle)
 	-- waypoint at the start of the relevant segment
 	newPpc.relevantWpNode = WaypointNode:new( newPpc.name .. '-relevantWpNode', vehicle, true)
 	-- waypoint at the end of the relevant segment
-	newPpc.nextWpNode = WaypointNode:new( newPpc.name .. '-nextWpNode', vehicle, false)
+	newPpc.nextWpNode = WaypointNode:new( newPpc.name .. '-nextWpNode', vehicle, true)
 	-- the current goal node
 	newPpc.goalWpNode = WaypointNode:new( newPpc.name .. '-goalWpNode', vehicle, false)
 	-- vehicle position projected on the path, not used for anything other than debug display
@@ -106,6 +106,7 @@ end
 function PurePursuitController:update()
 	self:findRelevantSegment()
 	self:findGoalPoint()
+	self:deactivateWhenInReverse()
 end
 
 function PurePursuitController:havePassedNextWaypoint(wpNode)
@@ -285,20 +286,17 @@ function PurePursuitController:setGoalPointValid(isGoalPointValid)
 end
 
 
--- deprecated
-function PurePursuitController:setCurrentIx(ix)
-	if ix ~= self.currentIx then
-		courseplay.debugVehicle(12, self.vehicle, 'PPC: current waypoint index %d', ix)
-	end
-	self.currentIx = math.min(ix, #self.vehicle.Waypoints)
-	if self.vehicle.Waypoints[self.currentIx].rev then
+-- Let the code in reverse.lua do its magic when reversing.
+-- That code seems to be robust against circling anyway
+function PurePursuitController:deactivateWhenInReverse()
+	if self.vehicle.Waypoints[self.currentWpNode.ix].rev then
 		if self.enabled then
-			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is reverse, deactivate PPC.', self.currentIx)
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is reverse, deactivate PPC.', self.currentWpNode.ix)
 		end
 		self.enabled = false
 	else
 		if not self.enabled then
-			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is not reverse, (re)activate PPC.', self.currentIx)
+			courseplay.debugVehicle(12, self.vehicle, 'PPC: waypoint %d is not reverse, (re)activate PPC.', self.currentWpNode.ix)
 		end
 		self.enabled = true
 	end

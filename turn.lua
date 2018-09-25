@@ -2091,7 +2091,7 @@ function courseplay:startAlignmentCourse( vehicle, targetWaypoint )
 		return
 	end
 	if #points < 3 then
-		courseplay.debugVehicle( 14, vehicle, "(Align) Alignment course would be only %d waypoints, it isn't neeeded then.", #points )
+		courseplay.debugVehicle( 14, vehicle, "(Align) Alignment course would be only %d waypoints, it isn't needed then.", #points )
 		return
 	end
   courseplay:clearTurnTargets( vehicle )
