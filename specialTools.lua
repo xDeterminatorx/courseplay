@@ -328,6 +328,7 @@ function courseplay:setNameVariable(workTool)
 	-- Zunhammer TV [Giants Mod: Holmer Pack]
 	elseif workTool.cp.xmlFileName == 'zunhammerTV.xml' then
 		workTool.cp.isLiquidManureOverloader = true;
+		workTool.cp.isZunhammerTerraVariant = true;
 	
 	-- Zunhammer Vibro [Giants Mod: Holmer Pack]
 	elseif workTool.cp.xmlFileName == 'zunhammerVibro.xml' then
@@ -849,6 +850,10 @@ function courseplay:handleSpecialTools(self,workTool,unfold,lower,turnOn,allowed
 	--Seed Kawk 980 Air Cart or Hatzenbichler TH1400. Theses are the fill tanks for the Big Bud DLC. Returns true for special tools so it is ingored in the folding sequence
 	if workTool.cp.isSeedHawk980AirCart or workTool.cp.isHatzenbichlerTH1400 then
 		return true ,allowedToDrive,forceSpeedLimit,workSpeed;
+	end;
+	
+	if workTool.cp.isZunhammerTerraVariant then
+		return true, allowedToDrive, forceSpeedLimit, workSpeed;
 	end;
 
 	return false, allowedToDrive,forceSpeedLimit,workSpeed;
