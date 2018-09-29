@@ -668,7 +668,7 @@ function courseplay:unload_combine(vehicle, dt)
 					courseplay:debug(string.format("%s: combineIsAutoCombine- create vehicle.cp.cpTurnBaseNode (%s; %s)",nameNum(vehicle),tostring(vehicle.cp.cpTurnBaseNode), tostring(getName(vehicle.cp.cpTurnBaseNode))),4)
 				end
 				
-				if vehicle.cp.isReversePossible then
+				if vehicle.cp.isReversePossible and vehicle.cp.turnOnField then
 					local maxDiameter = max(20,turnDiameter);
 					local maxX,_,maxZ = localToWorld(vehicle.cp.DirectionNode,-sideMultiplier*maxDiameter,0,-(trailerOffset+(0.5*maxDiameter)));
 					courseplay:debug(string.format("%s: is reverse possible",nameNum(vehicle)),4)	
@@ -676,13 +676,14 @@ function courseplay:unload_combine(vehicle, dt)
 						courseplay:debug(string.format("%s: points are on field -> turn",nameNum(vehicle)),4)	
 						vehicle.cp.curTarget.x, vehicle.cp.curTarget.y, vehicle.cp.curTarget.z = localToWorld(vehicle.cp.DirectionNode, 0,0,-(trailerOffset+totalLength+(0.5*maxDiameter)));
 						vehicle.cp.curTarget.rev = true;
-						vehicle.cp.nextTargets  = courseplay:createTurnAwayCourse(vehicle,1,maxDiameter,vehicle.cp.combineOffset,trailerOffset+(0.5*maxDiameter))
-						courseplay:addNewTargetVector(vehicle,-vehicle.cp.combineOffset,-(2*maxDiameter+1.5*totalLength))
+						vehicle.cp.nextTargets  = courseplay:createTurnAwayCourse(vehicle,-sideMultiplier,maxDiameter,offset,trailerOffset+(0.5*maxDiameter))
+						courseplay:addNewTargetVector(vehicle,sideMultiplier*offset,-(2*maxDiameter+1.5*totalLength),vehicle.cp.cpTurnBaseNode)
 					else --go reverse directly
 						courseplay:debug(string.format("%s: points are not on field -> reverse directly",nameNum(vehicle)),4)	
 						vehicle.cp.curTarget.x, vehicle.cp.curTarget.y, vehicle.cp.curTarget.z = localToWorld(currentTipper.rootNode, 0, 0, -(1.5*totalLength));
 						vehicle.cp.curTarget.rev = true
-						courseplay:addNewTargetVector(vehicle, sideMultiplier*offset,  (-totalLength*3.5),currentTipper,vehicle.cp.cpTurnBaseNode,true);
+						courseplay:addNewTargetVector(vehicle, sideMultiplier*offset/2,  (-totalLength*3),currentTipper,vehicle.cp.cpTurnBaseNode,true);
+						courseplay:addNewTargetVector(vehicle, sideMultiplier*offset,  (-totalLength*4),currentTipper,vehicle.cp.cpTurnBaseNode,true);
 						courseplay:addNewTargetVector(vehicle, sideMultiplier*offset,  (-totalLength*5),currentTipper,vehicle.cp.cpTurnBaseNode,true);
 					end
 				else
@@ -938,7 +939,7 @@ function courseplay:unload_combine(vehicle, dt)
 						vehicle.cp.chopperIsTurning = true
 	
 					else --i'm right of choppper
-						if vehicle.cp.isReversePossible and not autoCombineCircleMode and combine.cp.forcedSide == nil and combine.cp.multiTools == 1 then
+						if vehicle.cp.isReversePossible and not autoCombineCircleMode and combine.cp.forcedSide == nil and combine.cp.multiTools == 1 and vehicle.cp.turnOnField then
 							courseplay:debug(string.format("%s(%i): %s @ %s: combine turns left, I'm right. Turning the New Way", curFile, debug.getinfo(1).currentline, nameNum(vehicle), tostring(combine.name)), 4);
 							local maxDiameter = max(20,vehicle.cp.turnDiameter)
 							local verticalWaypointShift = courseplay:getWaypointShift(vehicle,tractor)
@@ -964,7 +965,7 @@ function courseplay:unload_combine(vehicle, dt)
 						courseplay:addNewTargetVector(vehicle, 2*turnDiameter,     turnDiameter);
 						vehicle.cp.chopperIsTurning = true
 					else -- I'm left of chopper
-						if vehicle.cp.isReversePossible and not autoCombineCircleMode and combine.cp.forcedSide == nil and combine.cp.multiTools == 1 then
+						if vehicle.cp.isReversePossible and not autoCombineCircleMode and combine.cp.forcedSide == nil and combine.cp.multiTools == 1 and vehicle.cp.turnOnField then
 							courseplay:debug(string.format("%s(%i): %s @ %s: combine turns right, I'm left. Turning the new way", curFile, debug.getinfo(1).currentline, nameNum(vehicle), tostring(combine.name)), 4);
 							local maxDiameter = max(20,vehicle.cp.turnDiameter)
 							local verticalWaypointShift = courseplay:getWaypointShift(vehicle,tractor)
@@ -1002,6 +1003,7 @@ function courseplay:unload_combine(vehicle, dt)
 				courseplay:setMode2NextState(vehicle, STATE_WAIT_FOR_PIPE);
 			end
 		-- elseif vehicle.cp.modeState ~= STATE_FOLLOW_TARGET_WPS and vehicle.cp.modeState ~= 99 and not vehicle.cp.realisticDriving then
+			--Why is vehicle.cp.realisticDriving Here? Asking Cause I will get the tipper trying to unload the combine in the middle of a turn pops64
 		elseif vehicle.cp.modeState ~= STATE_FOLLOW_TARGET_WPS and vehicle.cp.modeState ~= STATE_WAIT_FOR_COMBINE_TO_GET_OUT_OF_WAY and not vehicle.cp.realisticDriving then
 			-- just wait until combine has turned
 			allowedToDrive = false
