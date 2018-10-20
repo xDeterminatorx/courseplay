@@ -38,7 +38,7 @@ function courseplay:start(self)
 	courseplay:setEngineState(self, true);
 	self.cp.saveFuel = false
 	
-	--print(tableShow(self.attachedImplements[1],"self.attachedImplements",nil,nil,4))
+	--print(tableShow(self.attachedImplements[1],"self.attachedImplements",nil,nil,4)) 
 	--local id = self.attachedImplements[1].object.unloadTrigger.triggerId
 	--courseplay:findInTables(g_currentMission ,"g_currentMission", id)
 
@@ -784,6 +784,7 @@ function courseplay:stop(self)
 	self.cp.aiTurnNoBackward = false
 	self.cp.noStopOnEdge = false
 	self.cp.fillTrigger = nil;
+	self.cp.factoryScriptTrigger = nil;
 	self.cp.tipperLoadMode = 0;
 	self.cp.hasMachineToFill = false;
 	self.cp.unloadOrder = false
