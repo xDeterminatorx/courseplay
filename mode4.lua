@@ -72,6 +72,7 @@ function courseplay:handle_mode4(vehicle, allowedToDrive, workSpeed, refSpeed)
 						courseplay:startAlignmentCourse( vehicle, vehicle.Waypoints[vehicle.cp.waypointIndex-2], true)
 					end
 				end
+				vehicle.cp.ppc:initialize()
 			end
 		elseif vehicle.cp.hasUnloadingRefillingCourse and vehicle.cp.abortWork ~= nil then
 			allowedToDrive = false;
@@ -82,6 +83,7 @@ function courseplay:handle_mode4(vehicle, allowedToDrive, workSpeed, refSpeed)
 	if vehicle.cp.abortWork ~= nil then
 		if vehicle.cp.previousWaypointIndex == vehicle.cp.abortWork and seederFillLevelPct ~= 0 and sprayerFillLevelPct ~= 0 then
 			courseplay:setWaypointIndex(vehicle, vehicle.cp.abortWork + 2);
+			vehicle.cp.ppc:initialize()
 		end
 		local offset = 9;
 		if vehicle.cp.hasSowingMachine then
@@ -114,6 +116,7 @@ function courseplay:handle_mode4(vehicle, allowedToDrive, workSpeed, refSpeed)
 		hasFinishedWork = true;
 		if vehicle.cp.hasUnloadingRefillingCourse and vehicle.cp.waypointIndex == vehicle.cp.stopWork then --make sure that previousWaypointIndex is stopWork, so the 'waiting points' algorithm in drive() works
 			courseplay:setWaypointIndex(vehicle, vehicle.cp.stopWork + 1);
+			vehicle.cp.ppc:initialize()
 		end;
 	end;
 	
@@ -122,8 +125,6 @@ function courseplay:handle_mode4(vehicle, allowedToDrive, workSpeed, refSpeed)
 	local nextPoint = vehicle.Waypoints[vehicle.cp.waypointIndex];
 	
 	local ridgeMarker = prevPoint.ridgeMarker;
-	local turnStart = prevPoint.turnStart;
-	local turnEnd = prevPoint.turnEnd;
 	local specialTool; -- define it, so it will not be an global value anymore
 	
 	for i=1, #(vehicle.cp.workTools) do
